@@ -11,6 +11,7 @@ import '../../../../core/design/cutter_colors.dart';
 import '../../../../core/design/tokens.dart';
 import '../../../../core/utils/duration_format.dart';
 import '../../domain/entities/edit_project.dart';
+import '../../domain/entities/video_segment.dart';
 import '../controllers/export_controller.dart';
 import '../providers.dart';
 import '../widgets/export_sheet.dart';
@@ -38,23 +39,43 @@ class _EditorPageState extends ConsumerState<EditorPage> {
   bool _initFailed = false;
   Timer? _saveDebounce;
 
+  /// Corte cuja reprodução para no fim (toque na parte). Avulso: termina
+  /// sozinho ao chegar lá ou quando o cursor sai do trecho.
+  int? _previewSegmentId;
+
+  /// Corte "fixado": enquanto houver foco, a reprodução fica presa a ele.
+  int? _focusedSegmentId;
+
+  /// O player só atualiza a posição a cada ~500 ms — pouco para parar no
+  /// fim de um corte de 0,5 s. Este timer consulta a posição real.
+  Timer? _regionTicker;
+  bool _checkingRegion = false;
+
   @override
   void initState() {
     super.initState();
     _player = VideoPlayerController.file(File(widget.project.videoPath));
-    _player.initialize().then((_) {
-      if (!mounted) return;
-      final duration = _player.value.duration;
-      final segments = ref.read(segmentsControllerProvider.notifier);
-      if (widget.project.segments.isEmpty) {
-        segments.initialize(duration);
-      } else {
-        segments.restore(duration, widget.project.segments);
-      }
-      setState(() {});
-    }).catchError((Object _) {
-      if (mounted) setState(() => _initFailed = true);
-    });
+    _player
+        .initialize()
+        .then((_) {
+          if (!mounted) return;
+          final duration = _player.value.duration;
+          final segments = ref.read(segmentsControllerProvider.notifier);
+          if (widget.project.segments.isEmpty) {
+            segments.initialize(duration);
+          } else {
+            segments.restore(duration, widget.project.segments);
+          }
+          setState(() {});
+        })
+        .catchError((Object _) {
+          if (mounted) setState(() => _initFailed = true);
+        });
+    _player.addListener(_onPlayerValue);
+    _regionTicker = Timer.periodic(
+      const Duration(milliseconds: 80),
+      (_) => _enforceRegionEnd(),
+    );
   }
 
   @override
@@ -64,14 +85,123 @@ class _EditorPageState extends ConsumerState<EditorPage> {
       _saveDebounce!.cancel();
       _persistEditState();
     }
+    _regionTicker?.cancel();
+    _player.removeListener(_onPlayerValue);
     _player.dispose();
     super.dispose();
+  }
+
+  /// Trecho que limita a reprodução agora: o preview avulso ou o foco.
+  VideoSegment? get _playbackRegion =>
+      _segmentById(_previewSegmentId) ?? _segmentById(_focusedSegmentId);
+
+  VideoSegment? _segmentById(int? id) {
+    if (id == null) return null;
+    final segments = ref.read(segmentsControllerProvider).segments;
+    for (final segment in segments) {
+      if (segment.id == id) return segment;
+    }
+    return null;
+  }
+
+  /// Encerra o preview avulso quando o cursor sai do trecho (seek manual).
+  void _onPlayerValue() {
+    final previewId = _previewSegmentId;
+    if (previewId == null) return;
+    final preview = _segmentById(previewId);
+    if (preview == null) {
+      _previewSegmentId = null; // parte deixou de existir (mesclada)
+      return;
+    }
+    // Folga maior que o intervalo de atualização do player, para não
+    // cancelar por atraso na posição durante a reprodução.
+    const slack = Duration(milliseconds: 700);
+    final position = _player.value.position;
+    if (position < preview.start - slack || position > preview.end + slack) {
+      _previewSegmentId = null;
+    }
+  }
+
+  /// Pausa exatamente no fim do trecho ativo enquanto estiver tocando.
+  Future<void> _enforceRegionEnd() async {
+    if (_checkingRegion || !mounted || !_player.value.isPlaying) return;
+    final region = _playbackRegion;
+    if (region == null) return;
+    _checkingRegion = true;
+    try {
+      final position = await _player.position;
+      if (!mounted || position == null || !_player.value.isPlaying) return;
+      if (position >= region.end) {
+        _previewSegmentId = null;
+        await _player.pause();
+        await _player.seekTo(region.end);
+      }
+    } finally {
+      _checkingRegion = false;
+    }
+  }
+
+  /// Pula para o início do corte e reproduz só até o fim dele.
+  Future<void> _previewSegment(VideoSegment segment) async {
+    HapticFeedback.selectionClick();
+    // A região só é (re)ativada depois do salto, para o limitador não
+    // reagir à posição antiga do cursor.
+    _previewSegmentId = null;
+    final transferFocus =
+        _focusedSegmentId != null && _focusedSegmentId != segment.id;
+    if (transferFocus) setState(() => _focusedSegmentId = null);
+    await _player.seekTo(segment.start);
+    if (!mounted) return;
+    _previewSegmentId = segment.id;
+    // Com foco ativo, tocar em outra parte transfere o foco para ela.
+    if (transferFocus) setState(() => _focusedSegmentId = segment.id);
+    await _player.play();
+  }
+
+  /// Fixa (ou solta) a reprodução no corte. Ao fixar com o cursor fora do
+  /// trecho, pula para o início dele.
+  Future<void> _toggleFocus(VideoSegment segment) async {
+    HapticFeedback.selectionClick();
+    final focusing = _focusedSegmentId != segment.id;
+    if (focusing) {
+      final position = _player.value.position;
+      if (position < segment.start || position > segment.end) {
+        await _player.seekTo(segment.start);
+        if (!mounted) return;
+      }
+    }
+    setState(() {
+      _focusedSegmentId = focusing ? segment.id : null;
+      _previewSegmentId = null;
+    });
+  }
+
+  Future<void> _togglePlayPause() async {
+    if (_player.value.isPlaying) {
+      await _player.pause();
+      return;
+    }
+    const nearEnd = Duration(milliseconds: 80);
+    final region = _playbackRegion;
+    final position = _player.value.position;
+    if (region != null) {
+      // Fora do trecho (ou parado no fim dele), recomeça do início dele.
+      if (position < region.start || position >= region.end - nearEnd) {
+        await _player.seekTo(region.start);
+      }
+    } else if (_player.value.duration > Duration.zero &&
+        position >= _player.value.duration - nearEnd) {
+      await _player.seekTo(Duration.zero);
+    }
+    await _player.play();
   }
 
   void _persistEditState() {
     final segmentsState = ref.read(segmentsControllerProvider);
     if (!segmentsState.isReady) return;
-    ref.read(historyControllerProvider.notifier).saveEditState(
+    ref
+        .read(historyControllerProvider.notifier)
+        .saveEditState(
           widget.project.id,
           duration: segmentsState.duration,
           segments: segmentsState.segments,
@@ -93,12 +223,14 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     if (ok) {
       HapticFeedback.lightImpact();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-          'Não deu para cortar aqui: muito perto de uma divisão existente '
-          '(cada parte precisa de pelo menos 0,5 s).',
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não deu para cortar aqui: muito perto de uma divisão existente '
+            '(cada parte precisa de pelo menos 0,5 s).',
+          ),
         ),
-      ));
+      );
     }
   }
 
@@ -146,7 +278,8 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                   flex: 5,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg),
+                      horizontal: AppSpacing.lg,
+                    ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(AppRadii.lg),
                       child: ColoredBox(
@@ -161,13 +294,20 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                 const SizedBox(height: AppSpacing.xs),
                 _TransportBar(
                   player: _player,
+                  onPlayPause: _togglePlayPause,
                   onSeekBy: _seekBy,
                   onSplit: _splitAtPlayhead,
                 ),
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  child: TimelineEditor(player: _player),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                  ),
+                  child: TimelineEditor(
+                    player: _player,
+                    focusedSegmentId: _focusedSegmentId,
+                    onClearFocus: () =>
+                        setState(() => _focusedSegmentId = null),
+                  ),
                 ),
                 if (segmentsState.isReady)
                   Padding(
@@ -185,7 +325,8 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                           '${segmentsState.enabledCount} de '
                           '${segmentsState.segments.length} na exportação',
                           style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant),
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -206,15 +347,18 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                               const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (context, index) {
                             final segment = segmentsState.segments[index];
-                            final controller =
-                                ref.read(segmentsControllerProvider.notifier);
+                            final controller = ref.read(
+                              segmentsControllerProvider.notifier,
+                            );
                             return SegmentTile(
                               index: index,
                               segment: segment,
                               color: cutter.segmentColor(index),
                               ink: cutter.segmentInk,
-                              onTap: () => _player.seekTo(segment.start),
+                              focused: segment.id == _focusedSegmentId,
+                              onTap: () => _previewSegment(segment),
                               onToggle: (_) => controller.toggle(segment.id),
+                              onFocusToggle: () => _toggleFocus(segment),
                               onMergeWithPrevious: index == 0
                                   ? null
                                   : () => controller.mergeWithNext(index - 1),
@@ -252,11 +396,16 @@ class _EditorPageState extends ConsumerState<EditorPage> {
 class _TransportBar extends StatelessWidget {
   const _TransportBar({
     required this.player,
+    required this.onPlayPause,
     required this.onSeekBy,
     required this.onSplit,
   });
 
   final VideoPlayerController player;
+
+  /// Alternar play/pause fica com a página, que respeita o corte em foco.
+  final VoidCallback onPlayPause;
+
   final void Function(Duration offset) onSeekBy;
   final VoidCallback onSplit;
 
@@ -278,11 +427,12 @@ class _TransportBar extends StatelessWidget {
               IconButton.filled(
                 tooltip: value.isPlaying ? 'Pausar' : 'Reproduzir',
                 iconSize: 28,
-                onPressed: () =>
-                    value.isPlaying ? player.pause() : player.play(),
-                icon: Icon(value.isPlaying
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded),
+                onPressed: onPlayPause,
+                icon: Icon(
+                  value.isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                ),
               ),
               IconButton(
                 tooltip: 'Avançar 5 s',
@@ -340,8 +490,11 @@ class _InitError extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.heart_broken_rounded,
-                size: 56, color: theme.colorScheme.error),
+            Icon(
+              Icons.heart_broken_rounded,
+              size: 56,
+              color: theme.colorScheme.error,
+            ),
             const SizedBox(height: AppSpacing.md),
             Text(
               'Não foi possível reproduzir este vídeo.\n'

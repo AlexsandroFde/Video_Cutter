@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/design/tokens.dart';
 import '../../../../core/utils/duration_format.dart';
 import '../../domain/entities/video_segment.dart';
 
 /// Item da lista de segmentos: intervalo, duração e controles.
+///
+/// Tocar no item dá um preview do corte (pula para o começo e para no fim);
+/// o pino fixa a reprodução nele.
 class SegmentTile extends StatelessWidget {
   const SegmentTile({
     super.key,
@@ -11,8 +15,10 @@ class SegmentTile extends StatelessWidget {
     required this.segment,
     required this.color,
     required this.ink,
+    required this.focused,
     required this.onTap,
     required this.onToggle,
+    required this.onFocusToggle,
     this.onMergeWithPrevious,
   });
 
@@ -25,8 +31,12 @@ class SegmentTile extends StatelessWidget {
   /// Cor de texto sobre [color].
   final Color ink;
 
+  /// Reprodução fixada neste corte (pino ativo).
+  final bool focused;
+
   final VoidCallback onTap;
   final ValueChanged<bool> onToggle;
+  final VoidCallback onFocusToggle;
 
   /// Remove o corte no início deste segmento; `null` para o primeiro.
   final VoidCallback? onMergeWithPrevious;
@@ -40,10 +50,17 @@ class SegmentTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       tileColor: scheme.surfaceContainerLow,
+      shape: focused
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md),
+              side: BorderSide(color: scheme.primary, width: 1.5),
+            )
+          : null,
       leading: CircleAvatar(
         radius: 18,
-        backgroundColor:
-            segment.enabled ? color : scheme.surfaceContainerHighest,
+        backgroundColor: segment.enabled
+            ? color
+            : scheme.surfaceContainerHighest,
         child: Text(
           '${index + 1}',
           style: TextStyle(
@@ -67,9 +84,21 @@ class SegmentTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          IconButton(
+            tooltip: focused
+                ? 'Tirar do foco'
+                : 'Manter em foco (reproduz só esta parte)',
+            visualDensity: VisualDensity.compact,
+            color: focused ? scheme.primary : muted,
+            icon: Icon(
+              focused ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+            ),
+            onPressed: onFocusToggle,
+          ),
           if (onMergeWithPrevious != null)
             IconButton(
               tooltip: 'Mesclar com a parte anterior',
+              visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.call_merge_rounded),
               onPressed: onMergeWithPrevious,
             ),
