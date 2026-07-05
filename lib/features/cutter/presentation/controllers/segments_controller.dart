@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/video_segment.dart';
@@ -9,10 +10,16 @@ class SegmentsState extends Equatable {
   const SegmentsState({
     this.duration = Duration.zero,
     this.segments = const [],
+    this.canUndo = false,
+    this.canRedo = false,
   });
 
   final Duration duration;
   final List<VideoSegment> segments;
+
+  /// Há edições para desfazer/refazer (histórico vale só para a sessão).
+  final bool canUndo;
+  final bool canRedo;
 
   bool get isReady => duration > Duration.zero && segments.isNotEmpty;
 
@@ -21,31 +28,98 @@ class SegmentsState extends Equatable {
   List<VideoSegment> get enabledSegments =>
       segments.where((s) => s.enabled).toList();
 
-  SegmentsState copyWith({Duration? duration, List<VideoSegment>? segments}) {
+  SegmentsState copyWith({
+    Duration? duration,
+    List<VideoSegment>? segments,
+    bool? canUndo,
+    bool? canRedo,
+  }) {
     return SegmentsState(
       duration: duration ?? this.duration,
       segments: segments ?? this.segments,
+      canUndo: canUndo ?? this.canUndo,
+      canRedo: canRedo ?? this.canRedo,
     );
   }
 
   @override
-  List<Object?> get props => [duration, segments];
+  List<Object?> get props => [duration, segments, canUndo, canRedo];
 }
 
 /// Regras de edição dos segmentos: dividir, mesclar, arrastar fronteiras e
-/// habilitar/desabilitar trechos.
+/// habilitar/desabilitar trechos — com undo/redo por sessão.
 class SegmentsController extends Notifier<SegmentsState> {
   /// Comprimento mínimo de um segmento — evita cortes degenerados.
   static const minSegment = Duration(milliseconds: 500);
 
+  /// Limite de passos de undo — o bastante para uma sessão de edição.
+  static const _maxHistorySteps = 100;
+
   int _nextId = 0;
+
+  final List<List<VideoSegment>> _undoStack = [];
+  final List<List<VideoSegment>> _redoStack = [];
 
   @override
   SegmentsState build() => const SegmentsState();
 
+  /// Registra o estado atual como um passo de undo e aplica [segments].
+  void _apply(List<VideoSegment> segments) {
+    _pushUndoStep();
+    state = state.copyWith(segments: segments, canUndo: true, canRedo: false);
+  }
+
+  void _pushUndoStep() {
+    _undoStack.add(state.segments);
+    if (_undoStack.length > _maxHistorySteps) _undoStack.removeAt(0);
+    _redoStack.clear();
+  }
+
+  void _clearHistory() {
+    _undoStack.clear();
+    _redoStack.clear();
+  }
+
+  void undo() {
+    if (_undoStack.isEmpty) return;
+    _redoStack.add(state.segments);
+    state = state.copyWith(
+      segments: _undoStack.removeLast(),
+      canUndo: _undoStack.isNotEmpty,
+      canRedo: true,
+    );
+  }
+
+  void redo() {
+    if (_redoStack.isEmpty) return;
+    _undoStack.add(state.segments);
+    state = state.copyWith(
+      segments: _redoStack.removeLast(),
+      canUndo: true,
+      canRedo: _redoStack.isNotEmpty,
+    );
+  }
+
+  /// Início de um arrasto de fronteira: o arrasto inteiro (vários
+  /// [moveBoundary]) vira um único passo de undo.
+  void beginBoundaryDrag() {
+    _pushUndoStep();
+    state = state.copyWith(canUndo: true, canRedo: false);
+  }
+
+  /// Fim do arrasto: se a fronteira voltou para onde estava, descarta o
+  /// passo de undo criado em [beginBoundaryDrag].
+  void endBoundaryDrag() {
+    if (_undoStack.isNotEmpty && listEquals(_undoStack.last, state.segments)) {
+      _undoStack.removeLast();
+      state = state.copyWith(canUndo: _undoStack.isNotEmpty);
+    }
+  }
+
   /// (Re)inicia a edição com um único segmento cobrindo o vídeo inteiro.
   void initialize(Duration duration) {
     _nextId = 0;
+    _clearHistory();
     state = SegmentsState(
       duration: duration,
       segments: [
@@ -64,6 +138,7 @@ class SegmentsController extends Notifier<SegmentsState> {
       return;
     }
     _nextId = segments.map((s) => s.id).reduce((a, b) => a > b ? a : b) + 1;
+    _clearHistory();
     state = SegmentsState(duration: duration, segments: List.of(segments));
   }
 
@@ -83,8 +158,9 @@ class SegmentsController extends Notifier<SegmentsState> {
   /// Retorna `false` quando o corte cairia a menos de [minSegment] de uma
   /// fronteira existente (ou fora do vídeo).
   bool splitAt(Duration position) {
-    final index = state.segments
-        .indexWhere((s) => position > s.start && position < s.end);
+    final index = state.segments.indexWhere(
+      (s) => position > s.start && position < s.end,
+    );
     if (index == -1) return false;
 
     final segment = state.segments[index];
@@ -93,7 +169,8 @@ class SegmentsController extends Notifier<SegmentsState> {
       return false;
     }
 
-    final updated = [...state.segments]..replaceRange(index, index + 1, [
+    final updated = [...state.segments]
+      ..replaceRange(index, index + 1, [
         segment.copyWith(end: position),
         VideoSegment(
           id: _nextId++,
@@ -102,7 +179,7 @@ class SegmentsController extends Notifier<SegmentsState> {
           enabled: segment.enabled,
         ),
       ]);
-    state = state.copyWith(segments: updated);
+    _apply(updated);
     return true;
   }
 
@@ -118,7 +195,7 @@ class SegmentsController extends Notifier<SegmentsState> {
     );
     final updated = [...state.segments]
       ..replaceRange(index, index + 2, [merged]);
-    state = state.copyWith(segments: updated);
+    _apply(updated);
   }
 
   /// Arrasta a fronteira entre os segmentos [index] e [index] + 1 para
@@ -143,7 +220,7 @@ class SegmentsController extends Notifier<SegmentsState> {
 
   /// Inverte a participação do segmento [id] na exportação.
   void toggle(int id) {
-    state = state.copyWith(segments: [
+    _apply([
       for (final s in state.segments)
         s.id == id ? s.copyWith(enabled: !s.enabled) : s,
     ]);
@@ -151,6 +228,7 @@ class SegmentsController extends Notifier<SegmentsState> {
 
   void clear() {
     _nextId = 0;
+    _clearHistory();
     state = const SegmentsState();
   }
 

@@ -199,4 +199,109 @@ void main() {
       expect(state().isReady, isFalse);
     });
   });
+
+  group('undo/redo', () {
+    test('desfaz e refaz uma divisão', () {
+      controller.splitAt(const Duration(minutes: 4));
+      expect(state().canUndo, isTrue);
+      expect(state().canRedo, isFalse);
+
+      controller.undo();
+      expect(state().segments, hasLength(1));
+      expect(state().canUndo, isFalse);
+      expect(state().canRedo, isTrue);
+
+      controller.redo();
+      expect(state().segments, hasLength(2));
+      expect(state().segments[0].end, const Duration(minutes: 4));
+      expect(state().canRedo, isFalse);
+    });
+
+    test('desfaz toggle e mesclagem na ordem inversa', () {
+      controller.splitAt(const Duration(minutes: 4));
+      controller.toggle(state().segments[0].id);
+      controller.mergeWithNext(0);
+      expect(state().segments, hasLength(1));
+
+      controller.undo(); // desfaz a mesclagem
+      expect(state().segments, hasLength(2));
+      expect(state().segments[0].enabled, isFalse);
+
+      controller.undo(); // desfaz o toggle
+      expect(state().segments[0].enabled, isTrue);
+
+      controller.undo(); // desfaz a divisão
+      expect(state().segments, hasLength(1));
+      expect(state().canUndo, isFalse);
+    });
+
+    test('arrasto de fronteira vira um único passo de undo', () {
+      controller.splitAt(const Duration(minutes: 4));
+
+      controller.beginBoundaryDrag();
+      controller.moveBoundary(0, const Duration(minutes: 5));
+      controller.moveBoundary(0, const Duration(minutes: 6));
+      controller.endBoundaryDrag();
+
+      controller.undo();
+      expect(state().segments[0].end, const Duration(minutes: 4));
+    });
+
+    test('arrasto sem mudança não cria passo de undo', () {
+      controller.splitAt(const Duration(minutes: 4));
+
+      controller.beginBoundaryDrag();
+      controller.endBoundaryDrag();
+
+      controller.undo();
+      expect(
+        state().segments,
+        hasLength(1),
+        reason: 'volta direto ao estado antes da divisão',
+      );
+      expect(state().canUndo, isFalse);
+    });
+
+    test('nova edição depois de undo descarta o redo', () {
+      controller.splitAt(const Duration(minutes: 4));
+      controller.undo();
+      expect(state().canRedo, isTrue);
+
+      controller.splitAt(const Duration(minutes: 7));
+      expect(state().canRedo, isFalse);
+
+      controller.redo(); // não deve fazer nada
+      expect(state().segments, hasLength(2));
+      expect(state().segments[0].end, const Duration(minutes: 7));
+    });
+
+    test('undo devolve os mesmos ids (o foco continua válido)', () {
+      controller.splitAt(const Duration(minutes: 4));
+      final ids = state().segments.map((s) => s.id).toList();
+
+      controller.undo();
+      controller.redo();
+
+      expect(state().segments.map((s) => s.id).toList(), ids);
+    });
+
+    test('initialize e restore zeram o histórico', () {
+      controller.splitAt(const Duration(minutes: 4));
+      controller.initialize(total);
+      expect(state().canUndo, isFalse);
+
+      controller.splitAt(const Duration(minutes: 4));
+      controller.restore(total, state().segments);
+      expect(state().canUndo, isFalse);
+      expect(state().canRedo, isFalse);
+    });
+
+    test('undo e redo sem histórico são ignorados', () {
+      controller.undo();
+      controller.redo();
+      expect(state().segments, hasLength(1));
+      expect(state().canUndo, isFalse);
+      expect(state().canRedo, isFalse);
+    });
+  });
 }

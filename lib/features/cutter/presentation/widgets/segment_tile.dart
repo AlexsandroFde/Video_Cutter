@@ -79,6 +79,8 @@ class SegmentTile extends StatelessWidget {
         '${segment.start.label(tenths: true)} – '
         '${segment.end.label(tenths: true)}'
         '  •  ${segment.length.label(tenths: true)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: theme.textTheme.bodySmall?.copyWith(color: muted),
       ),
       trailing: Row(
@@ -102,7 +104,11 @@ class SegmentTile extends StatelessWidget {
               icon: const Icon(Icons.call_merge_rounded),
               onPressed: onMergeWithPrevious,
             ),
-          Switch(value: segment.enabled, onChanged: onToggle),
+          Switch(
+            value: segment.enabled,
+            onChanged: onToggle,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ],
       ),
     );

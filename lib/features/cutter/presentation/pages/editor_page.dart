@@ -264,11 +264,35 @@ class _EditorPageState extends ConsumerState<EditorPage> {
 
     return Scaffold(
       appBar: AppBar(
+        forceMaterialTransparency: true,
         title: Text(
           widget.project.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Desfazer',
+            onPressed: segmentsState.canUndo
+                ? () {
+                    HapticFeedback.lightImpact();
+                    ref.read(segmentsControllerProvider.notifier).undo();
+                  }
+                : null,
+            icon: const Icon(Icons.undo_rounded),
+          ),
+          IconButton(
+            tooltip: 'Refazer',
+            onPressed: segmentsState.canRedo
+                ? () {
+                    HapticFeedback.lightImpact();
+                    ref.read(segmentsControllerProvider.notifier).redo();
+                  }
+                : null,
+            icon: const Icon(Icons.redo_rounded),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+        ],
       ),
       body: _initFailed
           ? const _InitError()

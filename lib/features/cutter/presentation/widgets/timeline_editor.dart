@@ -50,7 +50,7 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
 
   /// Densidade máxima do zoom, em px por segundo de vídeo. Mais que isso
   /// não ajuda: cada parte tem no mínimo 0,5 s.
-  static const _maxPxPerSecond = 240.0;
+  static const _maxPxPerSecond = 51.0;
 
   int? _dragBoundary;
 
@@ -156,6 +156,10 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
                         );
                       } else {
                         HapticFeedback.selectionClick();
+                        // O arrasto inteiro vira um único passo de undo.
+                        ref
+                            .read(segmentsControllerProvider.notifier)
+                            .beginBoundaryDrag();
                       }
                     },
                     onScaleUpdate: (details) {
@@ -201,6 +205,11 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
                     },
                     onScaleEnd: (_) {
                       _stopEdgeScroll();
+                      if (_dragBoundary != null) {
+                        ref
+                            .read(segmentsControllerProvider.notifier)
+                            .endBoundaryDrag();
+                      }
                       if (_pinching) _panTail = _activePointers > 0;
                       _pinching = false;
                       setState(() => _dragBoundary = null);
@@ -328,7 +337,11 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
     _pinchBaseZoom = _zoom;
     final contentWidth = width * _zoom;
     _pinchBaseFraction = contentWidth == 0 ? 0 : (_scroll + dx) / contentWidth;
-    if (_dragBoundary != null) setState(() => _dragBoundary = null);
+    if (_dragBoundary != null) {
+      // A pinça interrompe o arrasto: fecha o passo de undo dele.
+      ref.read(segmentsControllerProvider.notifier).endBoundaryDrag();
+      setState(() => _dragBoundary = null);
+    }
   }
 
   /// Zoom pelos botões, ancorado no cursor de reprodução quando visível
