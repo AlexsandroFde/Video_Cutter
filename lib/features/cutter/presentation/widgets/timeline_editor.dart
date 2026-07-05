@@ -83,6 +83,12 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
   Timer? _followTimer;
   Duration _lastKnownPosition = Duration.zero;
   DateTime _lastPositionTime = DateTime.now();
+  bool _wasPlaying = false;
+
+  /// Posição mostrada no instante da pausa. Sem isso o marcador voltaria
+  /// para a última posição (defasada) do player e "flicaria" até chegar a
+  /// posição fresca.
+  Duration? _pauseSnapshot;
 
   @override
   void initState() {
@@ -100,31 +106,54 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
 
   void _onPlayerValue() {
     final value = widget.player.value;
+    final playing = value.isPlaying;
+
+    if (playing && !_wasPlaying) {
+      // Despausou: zera a base da extrapolação (o relógio parado durante a
+      // pausa jogaria o marcador para frente) e solta o congelamento.
+      _lastKnownPosition = value.position;
+      _lastPositionTime = DateTime.now();
+      _pauseSnapshot = null;
+    } else if (!playing && _wasPlaying) {
+      // Pausou: congela o marcador onde ele estava sendo mostrado até o
+      // player mandar uma posição fresca — senão ele voltaria ~0,5 s.
+      _pauseSnapshot = _extrapolated(value);
+    }
+
     if (value.position != _lastKnownPosition) {
       _lastKnownPosition = value.position;
       _lastPositionTime = DateTime.now();
+      _pauseSnapshot = null; // posição fresca (ou seek manual)
     }
-    if (value.isPlaying && _followTimer == null) {
+
+    if (playing && _followTimer == null) {
       _followTimer = Timer.periodic(const Duration(milliseconds: 33), (_) {
         if (mounted) setState(() {});
       });
-    } else if (!value.isPlaying && _followTimer != null) {
+    } else if (!playing && _followTimer != null) {
       _followTimer!.cancel();
       _followTimer = null;
     }
+    _wasPlaying = playing;
   }
 
-  /// Posição estimada agora: extrapola a última atualização do player pelo
-  /// tempo decorrido, na velocidade de reprodução atual.
-  Duration _playbackPosition(VideoPlayerValue value) {
-    if (!value.isPlaying) return value.position;
+  /// Extrapola a última posição conhecida pelo tempo decorrido, na
+  /// velocidade de reprodução atual.
+  Duration _extrapolated(VideoPlayerValue value) {
     final elapsed = DateTime.now().difference(_lastPositionTime);
     final estimated =
-        value.position +
+        _lastKnownPosition +
         Duration(
           milliseconds: (elapsed.inMilliseconds * value.playbackSpeed).round(),
         );
     return estimated > value.duration ? value.duration : estimated;
+  }
+
+  /// Posição a exibir agora: extrapolada durante a reprodução, congelada
+  /// logo após a pausa e a real do player nos demais casos.
+  Duration _playbackPosition(VideoPlayerValue value) {
+    if (value.isPlaying) return _extrapolated(value);
+    return _pauseSnapshot ?? value.position;
   }
 
   @override
