@@ -5,6 +5,7 @@ import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../domain/entities/export_format.dart';
 import '../../domain/entities/export_mode.dart';
 
 /// Executa comandos FFmpeg: corte de trechos e junção de streams.
@@ -13,6 +14,8 @@ class FfmpegDataSource {
 
   /// Recorta o trecho [start]..[end] de [inputPath] para [outputPath].
   ///
+  /// Com [ExportFormat.mp3] só o áudio é extraído (recodificado com o LAME,
+  /// presente na variante full-gpl do FFmpegKit) e [mode] é ignorado.
   /// [onProgress] recebe o avanço dentro do trecho, de 0 a 1.
   Future<void> cutSegment({
     required String inputPath,
@@ -20,14 +23,17 @@ class FfmpegDataSource {
     required Duration start,
     required Duration end,
     required ExportMode mode,
+    required ExportFormat format,
     void Function(double progress)? onProgress,
   }) async {
     final length = end - start;
     // `-ss` antes de `-i` faz seek por keyframe (rápido); com recodificação
     // o corte continua exato porque os frames são decodificados a partir dali.
-    final codecArgs = switch (mode) {
-      ExportMode.fastCopy => '-c copy -avoid_negative_ts make_zero',
-      ExportMode.precise =>
+    final codecArgs = switch ((format, mode)) {
+      (ExportFormat.mp3, _) => '-vn -c:a libmp3lame -q:a 2',
+      (ExportFormat.video, ExportMode.fastCopy) =>
+        '-c copy -avoid_negative_ts make_zero',
+      (ExportFormat.video, ExportMode.precise) =>
         '-c:v libx264 -preset veryfast -crf 20 -c:a aac -movflags +faststart',
     };
     final command = '-y -ss ${start.ffmpegSeconds} -i "$inputPath" '

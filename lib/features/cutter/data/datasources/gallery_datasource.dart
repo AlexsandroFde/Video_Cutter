@@ -1,11 +1,15 @@
+import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 
 import '../../../../core/errors/app_exception.dart';
 
-/// Salva vídeos numa pasta pública do aparelho, visível na galeria
-/// (`Movies/<álbum>` via MediaStore no Android; app Fotos no iOS).
+/// Salva mídia em pastas públicas do aparelho: vídeos em `Movies/<álbum>`
+/// (gal/MediaStore; app Fotos no iOS) e áudios em `Music/<álbum>` por um
+/// canal nativo próprio — o gal não cobre a coleção de áudio.
 class GalleryDataSource {
   const GalleryDataSource();
+
+  static const _mediaStoreChannel = MethodChannel('video_cutter/media_store');
 
   /// Garante a permissão de escrita; retorna `false` se o usuário negar.
   Future<bool> ensureAccess() async {
@@ -30,6 +34,24 @@ class GalleryDataSource {
         GalExceptionType.unexpected =>
           'Não foi possível salvar os vídeos na galeria.',
       });
+    }
+  }
+
+  /// Salva o áudio em [path] na pasta `Music/[album]` (Android).
+  Future<void> saveAudio(String path, {required String album}) async {
+    try {
+      await _mediaStoreChannel.invokeMethod<void>(
+        'saveAudio',
+        {'path': path, 'album': album},
+      );
+    } on MissingPluginException {
+      throw const ExportException(
+        'Exportar MP3 só está disponível no Android por enquanto.',
+      );
+    } on PlatformException {
+      throw const ExportException(
+        'Não foi possível salvar o áudio na pasta Música.',
+      );
     }
   }
 }

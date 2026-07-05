@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'export_format.dart';
+
 /// Eventos emitidos pelo repositório durante a exportação dos segmentos.
 sealed class ExportEvent extends Equatable {
   const ExportEvent();
@@ -38,7 +40,11 @@ final class ExportSavingToGallery extends ExportEvent {
 
 /// Todos os segmentos foram exportados e baixados com sucesso.
 final class ExportCompleted extends ExportEvent {
-  const ExportCompleted({required this.count, required this.album});
+  const ExportCompleted({
+    required this.count,
+    required this.album,
+    required this.format,
+  });
 
   /// Quantidade de cortes salvos.
   final int count;
@@ -46,6 +52,8 @@ final class ExportCompleted extends ExportEvent {
   /// Nome da pasta pública/álbum onde os cortes ficaram visíveis.
   final String album;
 
+  final ExportFormat format;
+
   @override
-  List<Object?> get props => [count, album];
+  List<Object?> get props => [count, album, format];
 }

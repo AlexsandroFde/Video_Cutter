@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../domain/entities/export_event.dart';
+import '../../domain/entities/export_format.dart';
 import '../../domain/entities/export_mode.dart';
 import '../../domain/entities/video_media.dart';
 import '../../domain/entities/video_segment.dart';
@@ -62,7 +63,11 @@ final class ExportPublishing extends ExportState {
 }
 
 final class ExportSuccess extends ExportState {
-  const ExportSuccess({required this.count, required this.album});
+  const ExportSuccess({
+    required this.count,
+    required this.album,
+    required this.format,
+  });
 
   /// Quantidade de cortes baixados.
   final int count;
@@ -70,8 +75,10 @@ final class ExportSuccess extends ExportState {
   /// Pasta pública/álbum onde os cortes ficaram visíveis.
   final String album;
 
+  final ExportFormat format;
+
   @override
-  List<Object?> get props => [count, album];
+  List<Object?> get props => [count, album, format];
 }
 
 final class ExportFailure extends ExportState {
@@ -97,6 +104,7 @@ class ExportController extends Notifier<ExportState> {
     required VideoMedia media,
     required List<VideoSegment> segments,
     required ExportMode mode,
+    required ExportFormat format,
   }) {
     if (state is ExportRunning) return;
     final total = segments.where((s) => s.enabled).length;
@@ -104,7 +112,12 @@ class ExportController extends Notifier<ExportState> {
 
     _subscription = ref
         .read(exportRepositoryProvider)
-        .exportSegments(media: media, segments: segments, mode: mode)
+        .exportSegments(
+          media: media,
+          segments: segments,
+          mode: mode,
+          format: format,
+        )
         .listen(
       (event) {
         switch (event) {
@@ -116,8 +129,8 @@ class ExportController extends Notifier<ExportState> {
             );
           case ExportSavingToGallery(:final index, :final total):
             state = ExportPublishing(current: index + 1, total: total);
-          case ExportCompleted(:final count, :final album):
-            state = ExportSuccess(count: count, album: album);
+          case ExportCompleted(:final count, :final album, :final format):
+            state = ExportSuccess(count: count, album: album, format: format);
         }
       },
       onError: (Object error, StackTrace _) {

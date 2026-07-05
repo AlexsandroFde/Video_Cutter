@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/design/app_theme.dart';
 import '../../../../core/design/tokens.dart';
+import '../../domain/entities/export_format.dart';
 import '../../domain/entities/export_mode.dart';
 import '../../domain/entities/video_media.dart';
 import '../controllers/export_controller.dart';
@@ -23,6 +25,10 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
   static const _albumLabel = 'Video Cutter';
 
   ExportMode _mode = ExportMode.fastCopy;
+  ExportFormat _format = ExportFormat.video;
+
+  /// O canal de MediaStore de áudio só existe no Android.
+  bool get _mp3Available => defaultTargetPlatform == TargetPlatform.android;
 
   void _start() {
     final segments = ref.read(segmentsControllerProvider).segments;
@@ -30,6 +36,7 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
           media: widget.media,
           segments: segments,
           mode: _mode,
+          format: _format,
         );
   }
 
@@ -53,8 +60,8 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
             _buildRunning(context, current, total, overall),
           ExportPublishing(:final current, :final total, :final overall) =>
             _buildPublishing(context, current, total, overall),
-          ExportSuccess(:final album, :final count) =>
-            _buildSuccess(context, album, count),
+          ExportSuccess(:final album, :final count, :final format) =>
+            _buildSuccess(context, album, count, format),
           ExportFailure(:final message) => _buildFailure(context, message),
         },
       ),
@@ -73,31 +80,56 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       children: [
         Text('Exportar pedacinhos', style: theme.textTheme.titleLarge),
         const SizedBox(height: AppSpacing.lg),
-        SegmentedButton<ExportMode>(
-          segments: const [
-            ButtonSegment(
-              value: ExportMode.fastCopy,
-              icon: Icon(Icons.bolt_rounded),
-              label: Text('Rápido'),
-            ),
-            ButtonSegment(
-              value: ExportMode.precise,
-              icon: Icon(Icons.straighten_rounded),
-              label: Text('Preciso'),
-            ),
-          ],
-          selected: {_mode},
-          onSelectionChanged: (selection) =>
-              setState(() => _mode = selection.first),
-        ),
-        const SizedBox(height: AppSpacing.md),
+        if (_mp3Available) ...[
+          SegmentedButton<ExportFormat>(
+            segments: const [
+              ButtonSegment(
+                value: ExportFormat.video,
+                icon: Icon(Icons.movie_rounded),
+                label: Text('Vídeo'),
+              ),
+              ButtonSegment(
+                value: ExportFormat.mp3,
+                icon: Icon(Icons.music_note_rounded),
+                label: Text('Só o áudio (MP3)'),
+              ),
+            ],
+            selected: {_format},
+            onSelectionChanged: (selection) =>
+                setState(() => _format = selection.first),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        if (_format == ExportFormat.video) ...[
+          SegmentedButton<ExportMode>(
+            segments: const [
+              ButtonSegment(
+                value: ExportMode.fastCopy,
+                icon: Icon(Icons.bolt_rounded),
+                label: Text('Rápido'),
+              ),
+              ButtonSegment(
+                value: ExportMode.precise,
+                icon: Icon(Icons.straighten_rounded),
+                label: Text('Preciso'),
+              ),
+            ],
+            selected: {_mode},
+            onSelectionChanged: (selection) =>
+                setState(() => _mode = selection.first),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
         Text(
-          switch (_mode) {
-            ExportMode.fastCopy =>
+          switch ((_format, _mode)) {
+            (ExportFormat.mp3, _) =>
+              'Extrai só o áudio de cada pedacinho, em MP3, com corte '
+                  'exato. Os arquivos vão para a pasta Música.',
+            (_, ExportMode.fastCopy) =>
               'Sem recodificar: quase instantâneo e sem perda de qualidade. '
                   'O início de cada corte é ajustado ao keyframe mais '
                   'próximo (pode variar 1–2 s).',
-            ExportMode.precise =>
+            (_, ExportMode.precise) =>
               'Recodifica cada trecho (H.264/AAC): corte exato no tempo '
                   'marcado, porém bem mais demorado.',
           },
@@ -182,7 +214,12 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
     );
   }
 
-  Widget _buildSuccess(BuildContext context, String album, int count) {
+  Widget _buildSuccess(
+    BuildContext context,
+    String album,
+    int count,
+    ExportFormat format,
+  ) {
     final theme = Theme.of(context);
     final controller = ref.read(exportControllerProvider.notifier);
 
@@ -207,7 +244,11 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'Já dá para ver tudo na sua galeria 🎀',
+          switch (format) {
+            ExportFormat.video => 'Já dá para ver tudo na sua galeria 🎀',
+            ExportFormat.mp3 =>
+              'Já dá para ouvir tudo na pasta Música 🎶',
+          },
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),

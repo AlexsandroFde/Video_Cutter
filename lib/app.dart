@@ -13,7 +13,9 @@ class VideoCutterApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      // Modo noturno é a identidade do app; o tema claro fica disponível
+      // para uma futura preferência do usuário.
+      themeMode: ThemeMode.dark,
       home: const HomePage(),
     );
   }

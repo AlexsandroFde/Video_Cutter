@@ -29,7 +29,7 @@ abstract final class AppTheme {
       colorScheme: scheme,
       fontFamily: 'Nunito',
       scaffoldBackgroundColor:
-          isDark ? const Color(0xFF211721) : const Color(0xFFFFF5F8),
+          isDark ? const Color(0xFF1A111A) : const Color(0xFFFFF5F8),
     );
 
     final textTheme = base.textTheme.copyWith(

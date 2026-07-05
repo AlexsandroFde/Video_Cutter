@@ -1,4 +1,5 @@
 import '../entities/export_event.dart';
+import '../entities/export_format.dart';
 import '../entities/export_mode.dart';
 import '../entities/video_media.dart';
 import '../entities/video_segment.dart';
@@ -14,5 +15,6 @@ abstract interface class ExportRepository {
     required VideoMedia media,
     required List<VideoSegment> segments,
     required ExportMode mode,
+    required ExportFormat format,
   });
 }

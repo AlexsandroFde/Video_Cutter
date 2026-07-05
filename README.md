@@ -17,6 +17,9 @@ YouTube.
   - *Rápido*: cópia de streams (`-c copy`) — instantâneo e sem perda, corte
     ajustado ao keyframe mais próximo.
   - *Preciso*: recodifica com H.264/AAC — corte exato, mais lento.
+- **Só o áudio (MP3)**: alternativa que extrai o áudio de cada pedacinho em
+  MP3 (LAME, corte exato) e salva em `Music/Video Cutter` via um
+  MethodChannel próprio de MediaStore (Android).
 - **Download direto numa pasta**: cada corte é baixado na pasta pública
   `Movies/Video Cutter` (via MediaStore) e aparece na galeria do aparelho,
   com confirmação ao final.
@@ -63,7 +66,8 @@ Tudo que é visual mora em `lib/core/design/`:
   framboesa (`ColorScheme.fromSeed` com variante *fidelity*), tipografia
   **Nunito** (embutida em `assets/fonts/`, sem dependência de rede) e todos
   os component themes do Material 3 (botões, inputs, sheets, diálogos…)
-  configurados em um lugar só.
+  configurados em um lugar só. O **modo noturno é o padrão** do app
+  (`ThemeMode.dark`); o tema claro fica pronto para uma futura preferência.
 - **`tokens.dart`** — escalas de espaçamento (`AppSpacing`), raios
   (`AppRadii`) e movimento (`AppMotion`). As telas não usam números mágicos.
 - **`cutter_colors.dart`** — `ThemeExtension` com as cores semânticas do

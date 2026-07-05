@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/file_name.dart';
 import '../../domain/entities/export_event.dart';
+import '../../domain/entities/export_format.dart';
 import '../../domain/entities/export_mode.dart';
 import '../../domain/entities/video_media.dart';
 import '../../domain/entities/video_segment.dart';
@@ -28,6 +29,7 @@ class ExportRepositoryImpl implements ExportRepository {
     required VideoMedia media,
     required List<VideoSegment> segments,
     required ExportMode mode,
+    required ExportFormat format,
   }) {
     // StreamController em vez de async*: os callbacks de progresso do FFmpeg
     // precisam adicionar eventos de fora do corpo do generator.
@@ -49,12 +51,16 @@ class ExportRepositoryImpl implements ExportRepository {
       }
 
       final outputDir = await _createOutputDir(media.title);
-      // Sem recodificação o container de saída deve ser o mesmo da entrada;
-      // com recodificação a saída é sempre H.264/AAC em .mp4.
+      // MP3 define a extensão; no vídeo sem recodificação o container de
+      // saída deve ser o mesmo da entrada, e recodificado vira .mp4.
       final inputExtension = p.extension(media.filePath);
-      final extension = mode == ExportMode.fastCopy && inputExtension.isNotEmpty
-          ? inputExtension
-          : '.mp4';
+      final extension = switch (format) {
+        ExportFormat.mp3 => '.mp3',
+        ExportFormat.video
+            when mode == ExportMode.fastCopy && inputExtension.isNotEmpty =>
+          inputExtension,
+        ExportFormat.video => '.mp4',
+      };
 
       // O título vem do nome da edição, único no histórico — assim os
       // arquivos baixados nunca repetem nome.
@@ -77,6 +83,7 @@ class ExportRepositoryImpl implements ExportRepository {
           start: segment.start,
           end: segment.end,
           mode: mode,
+          format: format,
           onProgress: (progress) => controller.add(ExportSegmentProgress(
             index: index,
             total: enabled.length,
@@ -86,12 +93,17 @@ class ExportRepositoryImpl implements ExportRepository {
         files.add(outputPath);
       }
 
-      // Publica os cortes na pasta pública, onde a galeria os enxerga.
+      // Publica os cortes na pasta pública: vídeos em Movies/, MP3 em Music/.
       for (final (index, file) in files.indexed) {
         controller.add(
           ExportSavingToGallery(index: index, total: files.length),
         );
-        await _gallery.saveVideo(file, album: albumName);
+        switch (format) {
+          case ExportFormat.video:
+            await _gallery.saveVideo(file, album: albumName);
+          case ExportFormat.mp3:
+            await _gallery.saveAudio(file, album: albumName);
+        }
       }
 
       // Os arquivos de trabalho já foram copiados para a pasta pública;
@@ -102,7 +114,11 @@ class ExportRepositoryImpl implements ExportRepository {
         // Falha na limpeza não compromete a exportação.
       }
 
-      controller.add(ExportCompleted(count: files.length, album: albumName));
+      controller.add(ExportCompleted(
+        count: files.length,
+        album: albumName,
+        format: format,
+      ));
     }
 
     unawaited(

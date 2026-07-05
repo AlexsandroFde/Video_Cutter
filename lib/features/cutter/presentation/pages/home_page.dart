@@ -167,7 +167,7 @@ class _AppBadge extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [scheme.primary, scheme.tertiary],
+                  colors: [scheme.primary, scheme.primaryContainer],
                 ),
                 borderRadius: BorderRadius.circular(AppRadii.xl),
               ),
