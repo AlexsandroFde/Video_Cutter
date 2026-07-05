@@ -26,7 +26,17 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.4
   flutter_lints: ^6.0.0
+
+# Ícones gerados por test/tools/generate_app_icon_test.dart.
+# Aplique com: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/icon/app_icon.png
+  adaptive_icon_background: assets/icon/app_icon_background.png
+  adaptive_icon_foreground: assets/icon/app_icon_foreground.png
 
 flutter:
   uses-material-design: true
