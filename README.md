@@ -20,6 +20,13 @@ YouTube.
 - **Download direto numa pasta**: cada corte é baixado na pasta pública
   `Movies/Video Cutter` (via MediaStore) e aparece na galeria do aparelho,
   com confirmação ao final.
+- **Histórico de edições (CRUD)**: cada vídeo carregado vira uma edição
+  persistida (o vídeo é copiado para o armazenamento do app) com nome
+  **único** — renomeável, com validação de duplicidade. Os cortes são
+  salvos automaticamente enquanto você edita (auto-save com debounce) e a
+  edição pode ser retomada, renomeada ou excluída na tela inicial. Os
+  arquivos exportados usam o nome da edição (`<Nome> - parte 01.mp4`),
+  então os downloads nunca repetem nome.
 
 ## Arquitetura
 

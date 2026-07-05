@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/app_exception.dart';
+import '../../domain/entities/edit_project.dart';
 import '../../domain/entities/video_media.dart';
 import '../providers.dart';
 
@@ -30,12 +31,13 @@ final class MediaLoading extends MediaState {
 }
 
 final class MediaReady extends MediaState {
-  const MediaReady(this.media);
+  const MediaReady(this.project);
 
-  final VideoMedia media;
+  /// Edição criada no histórico, pronta para abrir no editor.
+  final EditProject project;
 
   @override
-  List<Object?> get props => [media];
+  List<Object?> get props => [project];
 }
 
 final class MediaFailure extends MediaState {
@@ -57,7 +59,11 @@ class MediaController extends Notifier<MediaState> {
     state = const MediaLoading(message: 'Carregando vídeo…');
     try {
       final media = await ref.read(mediaRepositoryProvider).pickLocalVideo();
-      state = media == null ? const MediaIdle() : MediaReady(media);
+      if (media == null) {
+        state = const MediaIdle();
+        return;
+      }
+      state = MediaReady(await _createProject(media));
     } on AppException catch (e) {
       state = MediaFailure(e.message);
     } catch (_) {
@@ -75,12 +81,25 @@ class MediaController extends Notifier<MediaState> {
             onProgress: (progress) =>
                 state = MediaLoading(message: message, progress: progress),
           );
-      state = MediaReady(media);
+      state = MediaReady(await _createProject(media));
     } on AppException catch (e) {
       state = MediaFailure(e.message);
     } catch (_) {
       state = const MediaFailure('Falha inesperada ao baixar o vídeo.');
     }
+  }
+
+  /// Guarda o vídeo no armazenamento do app e registra a edição no
+  /// histórico, já com nome único.
+  Future<EditProject> _createProject(VideoMedia media) async {
+    state = const MediaLoading(message: 'Guardando no histórico…');
+    final project = await ref.read(historyRepositoryProvider).createProject(
+          videoPath: media.filePath,
+          title: media.title,
+          origin: media.origin,
+        );
+    ref.invalidate(historyControllerProvider);
+    return project;
   }
 
   void reset() => state = const MediaIdle();

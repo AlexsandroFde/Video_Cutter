@@ -41,3 +41,9 @@ final class ExportException extends AppException {
   const ExportException([String? details])
       : super(details ?? 'Falha ao exportar os segmentos.');
 }
+
+/// Operação inválida no histórico de edições.
+final class HistoryException extends AppException {
+  const HistoryException([String? details])
+      : super(details ?? 'Não foi possível atualizar o histórico.');
+}

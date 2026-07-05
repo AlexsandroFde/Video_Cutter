@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,7 +10,7 @@ import '../../../../core/design/app_theme.dart';
 import '../../../../core/design/cutter_colors.dart';
 import '../../../../core/design/tokens.dart';
 import '../../../../core/utils/duration_format.dart';
-import '../../domain/entities/video_media.dart';
+import '../../domain/entities/edit_project.dart';
 import '../controllers/export_controller.dart';
 import '../providers.dart';
 import '../widgets/export_sheet.dart';
@@ -18,28 +19,38 @@ import '../widgets/timeline_editor.dart';
 import '../widgets/video_preview.dart';
 
 /// Editor: player, timeline de segmentação e lista de partes.
+///
+/// Toda alteração nos cortes é salva no histórico automaticamente
+/// (com debounce), então dá para sair e retomar a edição depois.
 class EditorPage extends ConsumerStatefulWidget {
-  const EditorPage({super.key, required this.media});
+  const EditorPage({super.key, required this.project});
 
-  final VideoMedia media;
+  final EditProject project;
 
   @override
   ConsumerState<EditorPage> createState() => _EditorPageState();
 }
 
 class _EditorPageState extends ConsumerState<EditorPage> {
+  static const _saveDebounceDelay = Duration(milliseconds: 600);
+
   late final VideoPlayerController _player;
   bool _initFailed = false;
+  Timer? _saveDebounce;
 
   @override
   void initState() {
     super.initState();
-    _player = VideoPlayerController.file(File(widget.media.filePath));
+    _player = VideoPlayerController.file(File(widget.project.videoPath));
     _player.initialize().then((_) {
       if (!mounted) return;
-      ref
-          .read(segmentsControllerProvider.notifier)
-          .initialize(_player.value.duration);
+      final duration = _player.value.duration;
+      final segments = ref.read(segmentsControllerProvider.notifier);
+      if (widget.project.segments.isEmpty) {
+        segments.initialize(duration);
+      } else {
+        segments.restore(duration, widget.project.segments);
+      }
       setState(() {});
     }).catchError((Object _) {
       if (mounted) setState(() => _initFailed = true);
@@ -48,8 +59,23 @@ class _EditorPageState extends ConsumerState<EditorPage> {
 
   @override
   void dispose() {
+    // Alteração ainda no debounce não pode se perder ao sair.
+    if (_saveDebounce?.isActive ?? false) {
+      _saveDebounce!.cancel();
+      _persistEditState();
+    }
     _player.dispose();
     super.dispose();
+  }
+
+  void _persistEditState() {
+    final segmentsState = ref.read(segmentsControllerProvider);
+    if (!segmentsState.isReady) return;
+    ref.read(historyControllerProvider.notifier).saveEditState(
+          widget.project.id,
+          duration: segmentsState.duration,
+          segments: segmentsState.segments,
+        );
   }
 
   void _seekBy(Duration offset) {
@@ -87,7 +113,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => ExportSheet(media: widget.media),
+      builder: (_) => ExportSheet(media: widget.project.media),
     );
   }
 
@@ -97,10 +123,17 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     final theme = Theme.of(context);
     final cutter = theme.extension<CutterColors>()!;
 
+    // Auto-save: qualquer mudança nos cortes vai para o histórico.
+    ref.listen(segmentsControllerProvider, (_, next) {
+      if (!next.isReady) return;
+      _saveDebounce?.cancel();
+      _saveDebounce = Timer(_saveDebounceDelay, _persistEditState);
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.media.title,
+          widget.project.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

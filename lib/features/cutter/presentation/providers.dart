@@ -2,13 +2,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/datasources/ffmpeg_datasource.dart';
 import '../data/datasources/gallery_datasource.dart';
+import '../data/datasources/history_local_datasource.dart';
 import '../data/datasources/local_media_datasource.dart';
 import '../data/datasources/youtube_datasource.dart';
 import '../data/repositories/export_repository_impl.dart';
+import '../data/repositories/history_repository_impl.dart';
 import '../data/repositories/media_repository_impl.dart';
+import '../domain/entities/edit_project.dart';
 import '../domain/repositories/export_repository.dart';
+import '../domain/repositories/history_repository.dart';
 import '../domain/repositories/media_repository.dart';
 import 'controllers/export_controller.dart';
+import 'controllers/history_controller.dart';
 import 'controllers/media_controller.dart';
 import 'controllers/segments_controller.dart';
 
@@ -42,6 +47,19 @@ final exportRepositoryProvider = Provider<ExportRepository>(
     gallery: ref.watch(galleryDataSourceProvider),
   ),
 );
+
+final historyLocalDataSourceProvider =
+    Provider<HistoryLocalDataSource>((ref) => HistoryLocalDataSource());
+
+final historyRepositoryProvider = Provider<HistoryRepository>(
+  (ref) => HistoryRepositoryImpl(
+    local: ref.watch(historyLocalDataSourceProvider),
+  ),
+);
+
+final historyControllerProvider =
+    AsyncNotifierProvider<HistoryController, List<EditProject>>(
+        HistoryController.new);
 
 final mediaControllerProvider =
     NotifierProvider<MediaController, MediaState>(MediaController.new);

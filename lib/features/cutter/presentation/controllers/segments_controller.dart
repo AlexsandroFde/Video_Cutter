@@ -54,6 +54,30 @@ class SegmentsController extends Notifier<SegmentsState> {
     );
   }
 
+  /// Retoma uma edição salva no histórico.
+  ///
+  /// Se o estado salvo não cobrir [duration] de forma contígua (vídeo
+  /// trocado, dados antigos), recomeça do zero com [initialize].
+  void restore(Duration duration, List<VideoSegment> segments) {
+    if (duration <= Duration.zero || !_covers(duration, segments)) {
+      initialize(duration);
+      return;
+    }
+    _nextId = segments.map((s) => s.id).reduce((a, b) => a > b ? a : b) + 1;
+    state = SegmentsState(duration: duration, segments: List.of(segments));
+  }
+
+  bool _covers(Duration duration, List<VideoSegment> segments) {
+    if (segments.isEmpty) return false;
+    if (segments.first.start != Duration.zero) return false;
+    if (segments.last.end != duration) return false;
+    for (var i = 0; i < segments.length; i++) {
+      if (segments[i].end <= segments[i].start) return false;
+      if (i > 0 && segments[i].start != segments[i - 1].end) return false;
+    }
+    return true;
+  }
+
   /// Divide em dois o segmento que contém [position].
   ///
   /// Retorna `false` quando o corte cairia a menos de [minSegment] de uma

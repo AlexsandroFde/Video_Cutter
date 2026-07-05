@@ -56,6 +56,10 @@ class ExportRepositoryImpl implements ExportRepository {
           ? inputExtension
           : '.mp4';
 
+      // O título vem do nome da edição, único no histórico — assim os
+      // arquivos baixados nunca repetem nome.
+      final baseName = sanitizeFileName(media.title);
+
       final files = <String>[];
       for (final (index, segment) in enabled.indexed) {
         controller.add(ExportSegmentProgress(
@@ -65,7 +69,7 @@ class ExportRepositoryImpl implements ExportRepository {
         ));
         final outputPath = p.join(
           outputDir.path,
-          'parte_${'${index + 1}'.padLeft(2, '0')}$extension',
+          '$baseName - parte ${'${index + 1}'.padLeft(2, '0')}$extension',
         );
         await _ffmpeg.cutSegment(
           inputPath: media.filePath,

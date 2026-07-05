@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_cutter/features/cutter/domain/entities/video_segment.dart';
 import 'package:video_cutter/features/cutter/presentation/controllers/segments_controller.dart';
 import 'package:video_cutter/features/cutter/presentation/providers.dart';
 
@@ -145,6 +146,48 @@ void main() {
       expect(state().segments[0].enabled, isFalse);
       expect(state().segments[1].enabled, isTrue);
       expect(state().enabledCount, 1);
+    });
+  });
+
+  group('restore', () {
+    test('retoma os segmentos salvos e continua os ids sem colisão', () {
+      const cut = Duration(minutes: 4);
+      controller.restore(total, const [
+        VideoSegment(id: 0, start: Duration.zero, end: cut),
+        VideoSegment(id: 3, start: cut, end: total, enabled: false),
+      ]);
+
+      expect(state().segments, hasLength(2));
+      expect(state().segments[1].enabled, isFalse);
+
+      controller.splitAt(const Duration(minutes: 2));
+      final ids = state().segments.map((s) => s.id).toSet();
+      expect(ids, hasLength(3), reason: 'novo id não pode repetir os salvos');
+    });
+
+    test('estado salvo que não cobre o vídeo inteiro recomeça do zero', () {
+      controller.restore(total, const [
+        VideoSegment(id: 0, start: Duration.zero, end: Duration(minutes: 4)),
+      ]);
+
+      expect(state().segments, hasLength(1));
+      expect(state().segments.single.end, total);
+    });
+
+    test('segmentos não contíguos recomeçam do zero', () {
+      controller.restore(total, const [
+        VideoSegment(id: 0, start: Duration.zero, end: Duration(minutes: 3)),
+        VideoSegment(id: 1, start: Duration(minutes: 4), end: total),
+      ]);
+
+      expect(state().segments, hasLength(1));
+    });
+
+    test('lista vazia recomeça do zero', () {
+      controller.restore(total, const []);
+      expect(state().segments, hasLength(1));
+      expect(state().segments.single.start, Duration.zero);
+      expect(state().segments.single.end, total);
     });
   });
 
