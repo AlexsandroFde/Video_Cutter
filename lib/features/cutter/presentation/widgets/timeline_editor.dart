@@ -77,10 +77,54 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
   double _lastDragDx = 0;
   double _lastWidth = 0;
 
+  /// Enquanto o vídeo roda, repinta a trilha (~30 fps) interpolando a
+  /// posição entre as atualizações esparsas do player (~500 ms), para o
+  /// cursor e a rolagem centralizada andarem suaves.
+  Timer? _followTimer;
+  Duration _lastKnownPosition = Duration.zero;
+  DateTime _lastPositionTime = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.player.addListener(_onPlayerValue);
+  }
+
   @override
   void dispose() {
+    widget.player.removeListener(_onPlayerValue);
+    _followTimer?.cancel();
     _edgeScrollTimer?.cancel();
     super.dispose();
+  }
+
+  void _onPlayerValue() {
+    final value = widget.player.value;
+    if (value.position != _lastKnownPosition) {
+      _lastKnownPosition = value.position;
+      _lastPositionTime = DateTime.now();
+    }
+    if (value.isPlaying && _followTimer == null) {
+      _followTimer = Timer.periodic(const Duration(milliseconds: 33), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!value.isPlaying && _followTimer != null) {
+      _followTimer!.cancel();
+      _followTimer = null;
+    }
+  }
+
+  /// Posição estimada agora: extrapola a última atualização do player pelo
+  /// tempo decorrido, na velocidade de reprodução atual.
+  Duration _playbackPosition(VideoPlayerValue value) {
+    if (!value.isPlaying) return value.position;
+    final elapsed = DateTime.now().difference(_lastPositionTime);
+    final estimated =
+        value.position +
+        Duration(
+          milliseconds: (elapsed.inMilliseconds * value.playbackSpeed).round(),
+        );
+    return estimated > value.duration ? value.duration : estimated;
   }
 
   @override
@@ -102,19 +146,18 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
               valueListenable: widget.player,
               builder: (context, value, _) {
                 final totalMs = segmentsState.duration.inMilliseconds;
+                final position = _playbackPosition(value);
                 final playhead = totalMs == 0
                     ? 0.0
-                    : (value.position.inMilliseconds / totalMs).clamp(0.0, 1.0);
+                    : (position.inMilliseconds / totalMs).clamp(0.0, 1.0);
 
-                // Durante a reprodução, a janela segue o cursor.
-                if (value.isPlaying && !_pinching && _dragBoundary == null) {
-                  final px = playhead * width * _zoom - _scroll;
-                  if (px < 0 || px > width) {
-                    _scroll = _clampScroll(
-                      playhead * width * _zoom - width * 0.2,
-                      width,
-                    );
-                  }
+                // Enquanto o vídeo roda (e nenhum dedo está na trilha),
+                // mantém o cursor centralizado na janela.
+                if (value.isPlaying && _activePointers == 0) {
+                  _scroll = _clampScroll(
+                    playhead * width * _zoom - width / 2,
+                    width,
+                  );
                 }
 
                 final focusedIndex = segmentsState.segments.indexWhere(
