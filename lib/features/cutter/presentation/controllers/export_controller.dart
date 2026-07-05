@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../domain/entities/export_event.dart';
@@ -63,20 +62,16 @@ final class ExportPublishing extends ExportState {
 }
 
 final class ExportSuccess extends ExportState {
-  const ExportSuccess({
-    required this.directory,
-    required this.files,
-    required this.album,
-  });
+  const ExportSuccess({required this.count, required this.album});
 
-  final String directory;
-  final List<String> files;
+  /// Quantidade de cortes baixados.
+  final int count;
 
   /// Pasta pública/álbum onde os cortes ficaram visíveis.
   final String album;
 
   @override
-  List<Object?> get props => [directory, files, album];
+  List<Object?> get props => [count, album];
 }
 
 final class ExportFailure extends ExportState {
@@ -121,12 +116,8 @@ class ExportController extends Notifier<ExportState> {
             );
           case ExportSavingToGallery(:final index, :final total):
             state = ExportPublishing(current: index + 1, total: total);
-          case ExportCompleted(:final directory, :final files, :final album):
-            state = ExportSuccess(
-              directory: directory,
-              files: files,
-              album: album,
-            );
+          case ExportCompleted(:final count, :final album):
+            state = ExportSuccess(count: count, album: album);
         }
       },
       onError: (Object error, StackTrace _) {
@@ -137,16 +128,6 @@ class ExportController extends Notifier<ExportState> {
         );
       },
     );
-  }
-
-  /// Compartilha todos os arquivos exportados de uma vez (share sheet do SO).
-  Future<void> shareAll() async {
-    final current = state;
-    if (current is! ExportSuccess) return;
-    await SharePlus.instance.share(ShareParams(
-      files: [for (final path in current.files) XFile(path)],
-      title: 'Segmentos do vídeo',
-    ));
   }
 
   void reset() {

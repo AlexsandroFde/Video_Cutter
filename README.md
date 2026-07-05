@@ -17,11 +17,9 @@ YouTube.
   - *Rápido*: cópia de streams (`-c copy`) — instantâneo e sem perda, corte
     ajustado ao keyframe mais próximo.
   - *Preciso*: recodifica com H.264/AAC — corte exato, mais lento.
-- **Salvos numa pasta de verdade**: cada corte vai para a pasta pública
-  `Movies/Video Cutter` (via MediaStore) e aparece direto na galeria do
-  aparelho.
-- **Compartilhar tudo**: os arquivos também saem juntos pela share sheet do
-  sistema (Fotos, Drive, WhatsApp etc.).
+- **Download direto numa pasta**: cada corte é baixado na pasta pública
+  `Movies/Video Cutter` (via MediaStore) e aparece na galeria do aparelho,
+  com confirmação ao final.
 
 ## Arquitetura
 
@@ -112,7 +110,7 @@ flutter test         # testes unitários (controllers e utilitários)
 | `ffmpeg_kit_flutter_new` | corte/junção (fork mantido do FFmpegKit, variante full-gpl) |
 | `youtube_explode_dart` | resolução e download de streams do YouTube |
 | `file_picker` | seleção de vídeo local |
-| `share_plus` | compartilhar os segmentos em lote |
+| `gal` | salvar os cortes na pasta pública/galeria (MediaStore) |
 | `path_provider` / `path` | diretórios e caminhos |
 | `equatable` | igualdade por valor nas entidades/estados |
 
@@ -120,6 +118,6 @@ flutter test         # testes unitários (controllers e utilitários)
 
 - Baixar vídeos do YouTube pode violar os Termos de Serviço da plataforma.
   Use apenas com conteúdo próprio ou licenciado.
-- Os cortes são gerados numa pasta interna de trabalho e depois publicados
-  em `Movies/Video Cutter` (pasta pública, visível na galeria e no
-  gerenciador de arquivos). O "Compartilhar tudo" usa os arquivos internos.
+- Os cortes são gerados numa pasta interna de trabalho, publicados em
+  `Movies/Video Cutter` (pasta pública, visível na galeria e no gerenciador
+  de arquivos) e a pasta interna é apagada em seguida.

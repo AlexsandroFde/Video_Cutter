@@ -53,8 +53,8 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
             _buildRunning(context, current, total, overall),
           ExportPublishing(:final current, :final total, :final overall) =>
             _buildPublishing(context, current, total, overall),
-          ExportSuccess(:final album, :final files) =>
-            _buildSuccess(context, album, files),
+          ExportSuccess(:final album, :final count) =>
+            _buildSuccess(context, album, count),
           ExportFailure(:final message) => _buildFailure(context, message),
         },
       ),
@@ -182,11 +182,7 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
     );
   }
 
-  Widget _buildSuccess(
-    BuildContext context,
-    String album,
-    List<String> files,
-  ) {
+  Widget _buildSuccess(BuildContext context, String album, int count) {
     final theme = Theme.of(context);
     final controller = ref.read(exportControllerProvider.notifier);
 
@@ -203,9 +199,9 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          files.length == 1
-              ? '1 pedacinho salvo na pasta "$album"'
-              : '${files.length} pedacinhos salvos na pasta "$album"',
+          count == 1
+              ? '1 pedacinho baixado na pasta "$album"'
+              : '$count pedacinhos baixados na pasta "$album"',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium,
         ),
@@ -219,17 +215,12 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
         const SizedBox(height: AppSpacing.xl),
         FilledButton.icon(
           style: AppTheme.primaryAction,
-          onPressed: controller.shareAll,
-          icon: const Icon(Icons.share_rounded),
-          label: const Text('Compartilhar tudo'),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        TextButton(
           onPressed: () {
             controller.reset();
             Navigator.of(context).pop();
           },
-          child: const Text('Concluir'),
+          icon: const Icon(Icons.check_rounded),
+          label: const Text('Concluir'),
         ),
       ],
     );

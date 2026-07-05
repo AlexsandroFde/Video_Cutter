@@ -81,7 +81,7 @@ class _SourcePicker extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Corte um vídeo em pedacinhos\ne compartilhe tudo de uma vez 💕',
+          'Corte um vídeo em pedacinhos\ne baixe tudo de uma vez 💕',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),

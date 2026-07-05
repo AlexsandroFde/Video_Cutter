@@ -36,22 +36,16 @@ final class ExportSavingToGallery extends ExportEvent {
   List<Object?> get props => [index, total];
 }
 
-/// Todos os segmentos foram exportados e salvos com sucesso.
+/// Todos os segmentos foram exportados e baixados com sucesso.
 final class ExportCompleted extends ExportEvent {
-  const ExportCompleted({
-    required this.directory,
-    required this.files,
-    required this.album,
-  });
+  const ExportCompleted({required this.count, required this.album});
 
-  /// Diretório interno de trabalho (usado pelo "Compartilhar tudo").
-  final String directory;
-
-  final List<String> files;
+  /// Quantidade de cortes salvos.
+  final int count;
 
   /// Nome da pasta pública/álbum onde os cortes ficaram visíveis.
   final String album;
 
   @override
-  List<Object?> get props => [directory, files, album];
+  List<Object?> get props => [count, album];
 }

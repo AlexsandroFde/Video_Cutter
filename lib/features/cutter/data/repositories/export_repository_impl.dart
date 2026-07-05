@@ -90,11 +90,15 @@ class ExportRepositoryImpl implements ExportRepository {
         await _gallery.saveVideo(file, album: albumName);
       }
 
-      controller.add(ExportCompleted(
-        directory: outputDir.path,
-        files: files,
-        album: albumName,
-      ));
+      // Os arquivos de trabalho já foram copiados para a pasta pública;
+      // não há por que ocupar armazenamento interno com duplicatas.
+      try {
+        await outputDir.delete(recursive: true);
+      } on FileSystemException {
+        // Falha na limpeza não compromete a exportação.
+      }
+
+      controller.add(ExportCompleted(count: files.length, album: albumName));
     }
 
     unawaited(
