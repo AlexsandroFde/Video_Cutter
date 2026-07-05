@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/design/app_theme.dart';
+import '../../../../core/design/tokens.dart';
 import '../../domain/entities/export_mode.dart';
 import '../../domain/entities/video_media.dart';
 import '../controllers/export_controller.dart';
@@ -35,14 +36,14 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        24,
+        AppSpacing.xl,
         0,
-        24,
-        24 + MediaQuery.viewInsetsOf(context).bottom,
+        AppSpacing.xl,
+        AppSpacing.xl + MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: AnimatedSize(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
+        duration: AppMotion.normal,
+        curve: AppMotion.ease,
         child: switch (exportState) {
           ExportIdle() => _buildIdle(context),
           ExportRunning(:final current, :final total, :final overall) =>
@@ -65,18 +66,18 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Exportar segmentos', style: theme.textTheme.titleLarge),
-        const SizedBox(height: 16),
+        Text('Exportar pedacinhos', style: theme.textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.lg),
         SegmentedButton<ExportMode>(
           segments: const [
             ButtonSegment(
               value: ExportMode.fastCopy,
-              icon: Icon(Icons.bolt),
+              icon: Icon(Icons.bolt_rounded),
               label: Text('Rápido'),
             ),
             ButtonSegment(
               value: ExportMode.precise,
-              icon: Icon(Icons.straighten),
+              icon: Icon(Icons.straighten_rounded),
               label: Text('Preciso'),
             ),
           ],
@@ -84,7 +85,7 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
           onSelectionChanged: (selection) =>
               setState(() => _mode = selection.first),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.md),
         Text(
           switch (_mode) {
             ExportMode.fastCopy =>
@@ -98,15 +99,15 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpacing.xl),
         FilledButton.icon(
           style: AppTheme.primaryAction,
           onPressed: enabledCount == 0 ? null : _start,
-          icon: const Icon(Icons.content_cut),
+          icon: const Icon(Icons.content_cut_rounded),
           label: Text(
             enabledCount == 1
-                ? 'Exportar 1 segmento'
-                : 'Exportar $enabledCount segmentos',
+                ? 'Exportar 1 pedacinho'
+                : 'Exportar $enabledCount pedacinhos',
           ),
         ),
       ],
@@ -125,18 +126,21 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Exportando parte $current de $total…',
+          'Cortando parte $current de $total… ✂️',
           style: theme.textTheme.titleMedium,
         ),
-        const SizedBox(height: 16),
-        LinearProgressIndicator(value: overall, minHeight: 8),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.lg),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          child: LinearProgressIndicator(value: overall, minHeight: 10),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         Text(
           '${(overall * 100).toStringAsFixed(0)}%  —  mantenha o app aberto',
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.sm),
       ],
     );
   }
@@ -153,30 +157,36 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(Icons.check_circle, size: 56, color: theme.colorScheme.primary),
-        const SizedBox(height: 12),
+        const _CelebrationHeart(),
+        const SizedBox(height: AppSpacing.md),
         Text(
-          files.length == 1
-              ? '1 arquivo gerado'
-              : '${files.length} arquivos gerados',
+          'Prontinho! 💖',
           textAlign: TextAlign.center,
           style: theme.textTheme.titleLarge,
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          files.length == 1
+              ? '1 pedacinho pronto para compartilhar'
+              : '${files.length} pedacinhos prontos para compartilhar',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           directory,
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpacing.xl),
         FilledButton.icon(
           style: AppTheme.primaryAction,
           onPressed: controller.shareAll,
-          icon: const Icon(Icons.share),
+          icon: const Icon(Icons.share_rounded),
           label: const Text('Compartilhar tudo'),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.sm),
         TextButton(
           onPressed: () {
             controller.reset();
@@ -194,11 +204,18 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(Icons.error_outline, size: 56, color: theme.colorScheme.error),
-        const SizedBox(height: 12),
+        Icon(Icons.heart_broken_rounded,
+            size: 56, color: theme.colorScheme.error),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Ops… algo deu errado',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleLarge,
+        ),
+        const SizedBox(height: AppSpacing.xs),
         Text(message,
-            textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
-        const SizedBox(height: 24),
+            textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
+        const SizedBox(height: AppSpacing.xl),
         FilledButton(
           style: AppTheme.primaryAction,
           onPressed: () =>
@@ -206,6 +223,34 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
           child: const Text('Tentar de novo'),
         ),
       ],
+    );
+  }
+}
+
+/// Coração que entra "quicando" quando a exportação termina.
+class _CelebrationHeart extends StatelessWidget {
+  const _CelebrationHeart();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppMotion.slow,
+      curve: AppMotion.bouncy,
+      builder: (context, scale, child) =>
+          Transform.scale(scale: scale, child: child),
+      child: Container(
+        width: 72,
+        height: 72,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: scheme.primaryContainer,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Icons.favorite_rounded,
+            size: 40, color: scheme.onPrimaryContainer),
+      ),
     );
   }
 }

@@ -39,16 +39,29 @@ class _YoutubeUrlDialogState extends State<_YoutubeUrlDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Link do YouTube'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        keyboardType: TextInputType.url,
-        textInputAction: TextInputAction.go,
-        onSubmitted: (_) => _hasText ? _submit() : null,
-        decoration: const InputDecoration(
-          hintText: 'https://youtube.com/watch?v=…',
-          prefixIcon: Icon(Icons.link),
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.go,
+            onSubmitted: (_) => _hasText ? _submit() : null,
+            decoration: const InputDecoration(
+              hintText: 'https://youtube.com/watch?v=…',
+              prefixIcon: Icon(Icons.link_rounded),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Cole o endereço do vídeo que você quer cortar 🎬',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
       ),
       actions: [
         TextButton(

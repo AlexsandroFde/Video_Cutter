@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../../core/design/cutter_colors.dart';
 import '../../domain/entities/video_segment.dart';
 import '../controllers/segments_controller.dart';
 import '../providers.dart';
@@ -15,8 +17,8 @@ class TimelineEditor extends ConsumerStatefulWidget {
 
   final VideoPlayerController player;
 
-  /// Altura total do widget, incluindo a folga para as alças.
-  static const double height = 88;
+  /// Altura total do widget, incluindo a folga para as alças e o coração.
+  static const double height = 92;
 
   @override
   ConsumerState<TimelineEditor> createState() => _TimelineEditorState();
@@ -31,7 +33,7 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
   @override
   Widget build(BuildContext context) {
     final segmentsState = ref.watch(segmentsControllerProvider);
-    final scheme = Theme.of(context).colorScheme;
+    final cutter = Theme.of(context).extension<CutterColors>()!;
 
     return LayoutBuilder(builder: (context, constraints) {
       final width = constraints.maxWidth;
@@ -57,6 +59,8 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
               setState(() => _dragBoundary = hit);
               if (hit == null) {
                 widget.player.seekTo(_positionAt(dx, width, segmentsState));
+              } else {
+                HapticFeedback.selectionClick();
               }
             },
             onHorizontalDragUpdate: (details) {
@@ -81,7 +85,7 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
                 duration: segmentsState.duration,
                 playhead: playhead,
                 activeBoundary: _dragBoundary,
-                scheme: scheme,
+                colors: cutter,
               ),
             ),
           );
@@ -123,7 +127,7 @@ class _TimelinePainter extends CustomPainter {
     required this.duration,
     required this.playhead,
     required this.activeBoundary,
-    required this.scheme,
+    required this.colors,
   });
 
   final List<VideoSegment> segments;
@@ -133,18 +137,19 @@ class _TimelinePainter extends CustomPainter {
   final double playhead;
 
   final int? activeBoundary;
-  final ColorScheme scheme;
+  final CutterColors colors;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (duration == Duration.zero || segments.isEmpty) return;
 
-    final track = Rect.fromLTWH(0, 14, size.width, size.height - 28);
-    final trackRRect = RRect.fromRectAndRadius(track, const Radius.circular(10));
+    final track = Rect.fromLTWH(0, 18, size.width, size.height - 32);
+    final trackRRect =
+        RRect.fromRectAndRadius(track, const Radius.circular(12));
 
     canvas.save();
     canvas.clipRRect(trackRRect);
-    canvas.drawRect(track, Paint()..color = scheme.surfaceContainerHighest);
+    canvas.drawRect(track, Paint()..color = colors.timelineTrack);
 
     for (final (index, segment) in segments.indexed) {
       final rect = Rect.fromLTRB(
@@ -153,11 +158,10 @@ class _TimelinePainter extends CustomPainter {
         _x(segment.end, size.width),
         track.bottom,
       );
-      final color = !segment.enabled
-          ? scheme.onSurface.withValues(alpha: 0.10)
-          : (index.isEven ? scheme.primary : scheme.tertiary)
-              .withValues(alpha: 0.80);
-      canvas.drawRect(rect, Paint()..color = color);
+      final fill = segment.enabled
+          ? colors.segmentColor(index)
+          : colors.segmentDisabled;
+      canvas.drawRect(rect, Paint()..color = fill);
 
       if (rect.width > 26) {
         final textPainter = TextPainter(
@@ -165,10 +169,11 @@ class _TimelinePainter extends CustomPainter {
             text: '${index + 1}',
             style: TextStyle(
               color: segment.enabled
-                  ? scheme.onPrimary
-                  : scheme.onSurface.withValues(alpha: 0.45),
+                  ? colors.segmentInk
+                  : colors.boundaryHandle,
+              fontFamily: 'Nunito',
               fontSize: 13,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
             ),
           ),
           textDirection: TextDirection.ltr,
@@ -186,12 +191,12 @@ class _TimelinePainter extends CustomPainter {
       final x = _x(segments[i].end, size.width);
       final active = i == activeBoundary;
       final paint = Paint()
-        ..color = active ? Colors.white : scheme.onSurface.withValues(alpha: 0.85)
+        ..color = colors.boundaryHandle
         ..strokeWidth = active ? 4 : 3
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(
-        Offset(x, track.top - 5),
-        Offset(x, track.bottom + 5),
+        Offset(x, track.top - 4),
+        Offset(x, track.bottom + 4),
         paint,
       );
       canvas.drawCircle(
@@ -201,18 +206,33 @@ class _TimelinePainter extends CustomPainter {
       );
     }
 
-    // Cursor de reprodução.
+    // Cursor de reprodução, com um coraçãozinho como marcador.
     final px = (playhead * size.width).clamp(1.0, size.width - 1.0);
     final playheadPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2;
-    canvas.drawLine(Offset(px, 2), Offset(px, size.height - 2), playheadPaint);
-    final marker = Path()
-      ..moveTo(px - 5, 0)
-      ..lineTo(px + 5, 0)
-      ..lineTo(px, 8)
+      ..color = colors.playhead
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(px, 10),
+      Offset(px, size.height - 2),
+      playheadPaint,
+    );
+    canvas.drawPath(
+      _heart(Offset(px, 5), 6.5),
+      Paint()..color = colors.playhead,
+    );
+  }
+
+  /// Coração centrado em [center]; [s] controla o tamanho.
+  Path _heart(Offset center, double s) {
+    final x = center.dx;
+    final y = center.dy - s * 0.4;
+    return Path()
+      ..moveTo(x, y + s * 0.35)
+      ..cubicTo(x - s * 0.6, y - s * 0.35, x - s * 1.1, y + s * 0.35, x, y + s)
+      ..cubicTo(x + s * 1.1, y + s * 0.35, x + s * 0.6, y - s * 0.35, x,
+          y + s * 0.35)
       ..close();
-    canvas.drawPath(marker, Paint()..color = Colors.white);
   }
 
   double _x(Duration position, double width) =>
@@ -223,5 +243,6 @@ class _TimelinePainter extends CustomPainter {
       oldDelegate.segments != segments ||
       oldDelegate.duration != duration ||
       oldDelegate.playhead != playhead ||
-      oldDelegate.activeBoundary != activeBoundary;
+      oldDelegate.activeBoundary != activeBoundary ||
+      oldDelegate.colors != colors;
 }

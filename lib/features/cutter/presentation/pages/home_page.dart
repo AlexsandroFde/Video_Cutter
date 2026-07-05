@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/design/tokens.dart';
 import '../controllers/media_controller.dart';
 import '../providers.dart';
 import '../widgets/youtube_url_dialog.dart';
@@ -33,19 +33,23 @@ class HomePage extends ConsumerWidget {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 440),
             child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: switch (mediaState) {
-                MediaLoading(:final message, :final progress) =>
-                  _LoadingView(message: message, progress: progress),
-                _ => _SourcePicker(
-                    error: switch (mediaState) {
-                      MediaFailure(:final message) => message,
-                      _ => null,
-                    },
-                  ),
-              },
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: AnimatedSwitcher(
+                duration: AppMotion.normal,
+                switchInCurve: AppMotion.ease,
+                child: switch (mediaState) {
+                  MediaLoading(:final message, :final progress) =>
+                    _LoadingView(message: message, progress: progress),
+                  _ => _SourcePicker(
+                      error: switch (mediaState) {
+                        MediaFailure(:final message) => message,
+                        _ => null,
+                      },
+                    ),
+                },
+              ),
             ),
           ),
         ),
@@ -68,62 +72,189 @@ class _SourcePicker extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(Icons.content_cut, size: 64, color: theme.colorScheme.primary),
-        const SizedBox(height: 16),
+        const _AppBadge(),
+        const SizedBox(height: AppSpacing.lg),
         Text(
           'Video Cutter',
           textAlign: TextAlign.center,
-          style: theme.textTheme.headlineMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: theme.textTheme.headlineMedium,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.sm),
         Text(
-          'Divida um vídeo em vários segmentos\ne exporte todos de uma vez.',
+          'Corte um vídeo em pedacinhos\ne compartilhe tudo de uma vez 💕',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: AppSpacing.xxl),
         if (error != null) ...[
-          Card(
-            color: theme.colorScheme.errorContainer,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Icon(Icons.error_outline,
-                      color: theme.colorScheme.onErrorContainer),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      error!,
-                      style: TextStyle(
-                          color: theme.colorScheme.onErrorContainer),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
+          _ErrorBanner(message: error!),
+          const SizedBox(height: AppSpacing.lg),
         ],
-        FilledButton.icon(
-          style: AppTheme.primaryAction,
-          onPressed: controller.pickLocalVideo,
-          icon: const Icon(Icons.video_library_outlined),
-          label: const Text('Escolher vídeo do dispositivo'),
+        _SourceCard(
+          icon: Icons.video_library_rounded,
+          title: 'Do meu aparelho',
+          subtitle: 'Escolher um vídeo da galeria ou dos arquivos',
+          onTap: controller.pickLocalVideo,
         ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-          onPressed: () async {
+        const SizedBox(height: AppSpacing.md),
+        _SourceCard(
+          icon: Icons.play_circle_rounded,
+          title: 'Do YouTube',
+          subtitle: 'Colar o link de um vídeo para baixar',
+          onTap: () async {
             final url = await showYoutubeUrlDialog(context);
             if (url != null) await controller.loadFromYoutube(url);
           },
-          icon: const Icon(Icons.link),
-          label: const Text('Usar link do YouTube'),
+        ),
+        const SizedBox(height: AppSpacing.xxl),
+        Text(
+          'feito com ♥ para minha noiva Rebeka',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+          ),
         ),
       ],
+    );
+  }
+}
+
+/// Símbolo do app: tesourinha num quadrado degradê com um coração no canto.
+class _AppBadge extends StatelessWidget {
+  const _AppBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: SizedBox(
+        width: 96,
+        height: 96,
+        child: Stack(
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [scheme.primary, scheme.tertiary],
+                ),
+                borderRadius: BorderRadius.circular(AppRadii.xl),
+              ),
+              child: Icon(Icons.content_cut_rounded,
+                  size: 40, color: scheme.onPrimary),
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.favorite_rounded,
+                    size: 18, color: scheme.primary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Card de origem: ícone em chip degradê, título, descrição e chevron.
+class _SourceCard extends StatelessWidget {
+  const _SourceCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                ),
+                child: Icon(icon, color: scheme.onPrimaryContainer, size: 28),
+              ),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Icon(Icons.chevron_right_rounded,
+                  color: scheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, color: scheme.onErrorContainer),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: scheme.onErrorContainer),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -141,12 +272,24 @@ class _LoadingView extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const _PulsingHeart(),
+        const SizedBox(height: AppSpacing.xl),
         Text(message,
             textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
-        const SizedBox(height: 24),
-        LinearProgressIndicator(value: progress, minHeight: 8),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'isso pode levar um minutinho ☁️',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          child: LinearProgressIndicator(value: progress, minHeight: 10),
+        ),
         if (progress != null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           Text(
             '${(progress! * 100).toStringAsFixed(0)}%',
             textAlign: TextAlign.center,
@@ -154,6 +297,44 @@ class _LoadingView extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Coração que pulsa devagarinho enquanto o vídeo carrega.
+class _PulsingHeart extends StatefulWidget {
+  const _PulsingHeart();
+
+  @override
+  State<_PulsingHeart> createState() => _PulsingHeartState();
+}
+
+class _PulsingHeartState extends State<_PulsingHeart>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  late final Animation<double> _scale = Tween(begin: 0.9, end: 1.1).animate(
+    CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scale,
+      child: Icon(
+        Icons.favorite_rounded,
+        size: 64,
+        color: Theme.of(context).colorScheme.primary,
+      ),
     );
   }
 }

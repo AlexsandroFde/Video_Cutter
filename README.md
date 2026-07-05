@@ -47,6 +47,25 @@ lib/
         └── widgets/           # TimelineEditor (CustomPainter), ExportSheet…
 ```
 
+### Design system
+
+Tudo que é visual mora em `lib/core/design/`:
+
+- **`app_theme.dart`** — temas claro e escuro gerados de um seed rosa
+  framboesa (`ColorScheme.fromSeed` com variante *fidelity*), tipografia
+  **Nunito** (embutida em `assets/fonts/`, sem dependência de rede) e todos
+  os component themes do Material 3 (botões, inputs, sheets, diálogos…)
+  configurados em um lugar só.
+- **`tokens.dart`** — escalas de espaçamento (`AppSpacing`), raios
+  (`AppRadii`) e movimento (`AppMotion`). As telas não usam números mágicos.
+- **`cutter_colors.dart`** — `ThemeExtension` com as cores semânticas do
+  editor: paleta pastel dos segmentos (rosa, lilás, pêssego, menta, céu,
+  baunilha), trilha da timeline, cursor e alças — resolvidas por tema.
+
+Detalhes de experiência: cursor de reprodução com marcador de coração,
+feedback háptico ao cortar e arrastar fronteiras, estados de carregamento e
+sucesso animados, e microcopy carinhosa ("pedacinhos" 💕).
+
 Decisões principais:
 
 - **Estados selados** (`sealed class`) por controller — `MediaState`,

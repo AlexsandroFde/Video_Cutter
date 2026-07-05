@@ -2,7 +2,7 @@
     <!-- Download de vídeos do YouTube. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="video_cutter"
+        android:label="Video Cutter"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

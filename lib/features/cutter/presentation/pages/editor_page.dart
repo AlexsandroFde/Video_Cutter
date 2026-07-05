@@ -1,10 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/design/app_theme.dart';
+import '../../../../core/design/cutter_colors.dart';
+import '../../../../core/design/tokens.dart';
 import '../../../../core/utils/duration_format.dart';
 import '../../domain/entities/video_media.dart';
 import '../controllers/export_controller.dart';
@@ -61,7 +64,9 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     final ok = ref
         .read(segmentsControllerProvider.notifier)
         .splitAt(_player.value.position);
-    if (!ok) {
+    if (ok) {
+      HapticFeedback.lightImpact();
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text(
           'Não deu para cortar aqui: muito perto de uma divisão existente '
@@ -81,7 +86,6 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     }
     await showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
       isScrollControlled: true,
       builder: (_) => ExportSheet(media: widget.media),
     );
@@ -90,7 +94,8 @@ class _EditorPageState extends ConsumerState<EditorPage> {
   @override
   Widget build(BuildContext context) {
     final segmentsState = ref.watch(segmentsControllerProvider);
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cutter = theme.extension<CutterColors>()!;
 
     return Scaffold(
       appBar: AppBar(
@@ -104,23 +109,68 @@ class _EditorPageState extends ConsumerState<EditorPage> {
           ? const _InitError()
           : Column(
               children: [
-                Expanded(flex: 5, child: VideoPreview(player: _player)),
+                Expanded(
+                  flex: 5,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadii.lg),
+                      child: ColoredBox(
+                        color: Colors.black,
+                        child: SizedBox.expand(
+                          child: VideoPreview(player: _player),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
                 _TransportBar(
                   player: _player,
                   onSeekBy: _seekBy,
                   onSplit: _splitAtPlayhead,
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                   child: TimelineEditor(player: _player),
                 ),
-                const SizedBox(height: 4),
+                if (segmentsState.isReady)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl,
+                      AppSpacing.md,
+                      AppSpacing.xl,
+                      AppSpacing.xs,
+                    ),
+                    child: Row(
+                      children: [
+                        Text('Pedacinhos', style: theme.textTheme.titleMedium),
+                        const Spacer(),
+                        Text(
+                          '${segmentsState.enabledCount} de '
+                          '${segmentsState.segments.length} na exportação',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
                 Expanded(
                   flex: 4,
                   child: !segmentsState.isReady
                       ? const SizedBox.shrink()
-                      : ListView.builder(
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.lg,
+                            AppSpacing.xs,
+                            AppSpacing.lg,
+                            AppSpacing.lg,
+                          ),
                           itemCount: segmentsState.segments.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (context, index) {
                             final segment = segmentsState.segments[index];
                             final controller =
@@ -128,9 +178,8 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                             return SegmentTile(
                               index: index,
                               segment: segment,
-                              color: index.isEven
-                                  ? scheme.primary
-                                  : scheme.tertiary,
+                              color: cutter.segmentColor(index),
+                              ink: cutter.segmentInk,
                               onTap: () => _player.seekTo(segment.start),
                               onToggle: (_) => controller.toggle(segment.id),
                               onMergeWithPrevious: index == 0
@@ -143,17 +192,22 @@ class _EditorPageState extends ConsumerState<EditorPage> {
               ],
             ),
       bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        minimum: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
         child: FilledButton.icon(
           style: AppTheme.primaryAction,
           onPressed: segmentsState.isReady && segmentsState.enabledCount > 0
               ? _openExportSheet
               : null,
-          icon: const Icon(Icons.save_alt),
+          icon: const Icon(Icons.ios_share_rounded),
           label: Text(
             segmentsState.enabledCount == 1
-                ? 'Exportar 1 segmento'
-                : 'Exportar ${segmentsState.enabledCount} segmentos',
+                ? 'Exportar 1 pedacinho'
+                : 'Exportar ${segmentsState.enabledCount} pedacinhos',
           ),
         ),
       ),
@@ -177,7 +231,7 @@ class _TransportBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: ValueListenableBuilder<VideoPlayerValue>(
         valueListenable: player,
         builder: (context, value, _) {
@@ -186,35 +240,51 @@ class _TransportBar extends StatelessWidget {
               IconButton(
                 tooltip: 'Voltar 5 s',
                 onPressed: () => onSeekBy(const Duration(seconds: -5)),
-                icon: const Icon(Icons.replay_5),
+                icon: const Icon(Icons.replay_5_rounded),
               ),
               IconButton.filled(
                 tooltip: value.isPlaying ? 'Pausar' : 'Reproduzir',
+                iconSize: 28,
                 onPressed: () =>
                     value.isPlaying ? player.pause() : player.play(),
-                icon: Icon(value.isPlaying ? Icons.pause : Icons.play_arrow),
+                icon: Icon(value.isPlaying
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded),
               ),
               IconButton(
                 tooltip: 'Avançar 5 s',
                 onPressed: () => onSeekBy(const Duration(seconds: 5)),
-                icon: const Icon(Icons.forward_5),
+                icon: const Icon(Icons.forward_5_rounded),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: AppSpacing.xs),
               Expanded(
-                child: Text(
-                  '${value.position.label(tenths: true)} / '
-                  '${value.duration.label()}',
-                  overflow: TextOverflow.fade,
-                  softWrap: false,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                    color: theme.colorScheme.onSurfaceVariant,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  child: Text(
+                    '${value.position.label(tenths: true)} / '
+                    '${value.duration.label()}',
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
               FilledButton.tonalIcon(
                 onPressed: onSplit,
-                icon: const Icon(Icons.content_cut, size: 18),
+                icon: const Icon(Icons.content_cut_rounded, size: 18),
                 label: const Text('Dividir'),
               ),
             ],
@@ -233,13 +303,13 @@ class _InitError extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.broken_image_outlined,
+            Icon(Icons.heart_broken_rounded,
                 size: 56, color: theme.colorScheme.error),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             Text(
               'Não foi possível reproduzir este vídeo.\n'
               'O formato pode não ser suportado pelo aparelho.',

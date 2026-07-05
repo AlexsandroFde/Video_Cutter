@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'core/theme/app_theme.dart';
+import 'core/design/app_theme.dart';
 import 'features/cutter/presentation/pages/home_page.dart';
 
 class VideoCutterApp extends StatelessWidget {
@@ -11,7 +11,9 @@ class VideoCutterApp extends StatelessWidget {
     return MaterialApp(
       title: 'Video Cutter',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       home: const HomePage(),
     );
   }
