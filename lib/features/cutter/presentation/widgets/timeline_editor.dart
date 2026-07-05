@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -70,6 +71,18 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
   /// fazer scrub — evita pulos acidentais do cursor ao soltar os dedos.
   bool _panTail = false;
 
+  /// Enquanto um arrasto segura a marcação na beirada (ou além dela), este
+  /// timer desliza a trilha continuamente, mesmo com o dedo parado.
+  Timer? _edgeScrollTimer;
+  double _lastDragDx = 0;
+  double _lastWidth = 0;
+
+  @override
+  void dispose() {
+    _edgeScrollTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final segmentsState = ref.watch(segmentsControllerProvider);
@@ -132,6 +145,9 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
                       }
                       if (_panTail) return;
                       _pinching = false;
+                      _lastDragDx = dx;
+                      _lastWidth = width;
+                      _startEdgeScroll();
                       final hit = _hitBoundary(dx, width, segmentsState);
                       setState(() => _dragBoundary = hit);
                       if (hit == null) {
@@ -167,8 +183,13 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
                         );
                         return;
                       }
-                      _autoScrollNearEdges(dx, width);
-                      final position = _positionAt(dx, width, segmentsState);
+                      _lastDragDx = dx;
+                      _lastWidth = width;
+                      final position = _positionAt(
+                        dx.clamp(0.0, width),
+                        width,
+                        segmentsState,
+                      );
                       final boundary = _dragBoundary;
                       if (boundary != null) {
                         ref
@@ -179,6 +200,7 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
                       }
                     },
                     onScaleEnd: (_) {
+                      _stopEdgeScroll();
                       if (_pinching) _panTail = _activePointers > 0;
                       _pinching = false;
                       setState(() => _dragBoundary = null);
@@ -295,12 +317,14 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
     if (_activePointers == 0) {
       _panTail = false;
       _pinching = false;
+      _stopEdgeScroll();
     }
   }
 
   void _startPinch(double dx, double width) {
     _pinching = true;
     _panTail = false;
+    _stopEdgeScroll();
     _pinchBaseZoom = _zoom;
     final contentWidth = width * _zoom;
     _pinchBaseFraction = contentWidth == 0 ? 0 : (_scroll + dx) / contentWidth;
@@ -327,19 +351,53 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
     _scroll = _clampScroll(fraction * width * newZoom - anchor, width);
   }
 
-  /// Arrastar até a beirada da janela rola a trilha ampliada aos poucos.
-  void _autoScrollNearEdges(double dx, double width) {
-    if (_zoom <= 1) return;
+  /// Segurar a marcação na beirada da janela (ou fora dela) desliza a
+  /// trilha continuamente — quanto mais para fora, mais rápido — e leva o
+  /// corte ou o cursor junto.
+  void _edgeScrollTick() {
+    if (!mounted || _pinching || _panTail || _zoom <= 1) return;
+    final width = _lastWidth;
+    if (width <= 0) return;
+
     const edge = 32.0;
-    var delta = 0.0;
+    const maxSpeed = 18.0; // px por tick (~60 fps)
+    final dx = _lastDragDx;
+    double delta;
     if (dx < edge) {
-      delta = -(edge - dx) * 0.3;
+      delta = -math.min(maxSpeed, (edge - dx) * 0.25);
     } else if (dx > width - edge) {
-      delta = (dx - (width - edge)) * 0.3;
+      delta = math.min(maxSpeed, (dx - (width - edge)) * 0.25);
+    } else {
+      return;
     }
-    if (delta == 0) return;
+
     final next = _clampScroll(_scroll + delta, width);
-    if (next != _scroll) setState(() => _scroll = next);
+    if (next == _scroll) return; // chegou no limite da trilha
+    setState(() => _scroll = next);
+
+    // A trilha andou por baixo do dedo: reaplica a posição sob ele.
+    final state = ref.read(segmentsControllerProvider);
+    final position = _positionAt(dx.clamp(0.0, width), width, state);
+    final boundary = _dragBoundary;
+    if (boundary != null) {
+      ref
+          .read(segmentsControllerProvider.notifier)
+          .moveBoundary(boundary, position);
+    } else {
+      widget.player.seekTo(position);
+    }
+  }
+
+  void _startEdgeScroll() {
+    _edgeScrollTimer ??= Timer.periodic(
+      const Duration(milliseconds: 16),
+      (_) => _edgeScrollTick(),
+    );
+  }
+
+  void _stopEdgeScroll() {
+    _edgeScrollTimer?.cancel();
+    _edgeScrollTimer = null;
   }
 
   double _maxZoomFor(double width, Duration duration) {
