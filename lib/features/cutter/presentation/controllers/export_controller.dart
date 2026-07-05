@@ -46,14 +46,37 @@ final class ExportRunning extends ExportState {
   List<Object?> get props => [current, total, progress];
 }
 
+/// Os cortes ficaram prontos e estão sendo salvos na pasta pública.
+final class ExportPublishing extends ExportState {
+  const ExportPublishing({required this.current, required this.total});
+
+  /// Arquivo sendo salvo, 1-based (pronto para exibição).
+  final int current;
+
+  final int total;
+
+  double get overall =>
+      total == 0 ? 0 : (current / total).clamp(0.0, 1.0);
+
+  @override
+  List<Object?> get props => [current, total];
+}
+
 final class ExportSuccess extends ExportState {
-  const ExportSuccess({required this.directory, required this.files});
+  const ExportSuccess({
+    required this.directory,
+    required this.files,
+    required this.album,
+  });
 
   final String directory;
   final List<String> files;
 
+  /// Pasta pública/álbum onde os cortes ficaram visíveis.
+  final String album;
+
   @override
-  List<Object?> get props => [directory, files];
+  List<Object?> get props => [directory, files, album];
 }
 
 final class ExportFailure extends ExportState {
@@ -96,8 +119,14 @@ class ExportController extends Notifier<ExportState> {
               total: total,
               progress: progress,
             );
-          case ExportCompleted(:final directory, :final files):
-            state = ExportSuccess(directory: directory, files: files);
+          case ExportSavingToGallery(:final index, :final total):
+            state = ExportPublishing(current: index + 1, total: total);
+          case ExportCompleted(:final directory, :final files, :final album):
+            state = ExportSuccess(
+              directory: directory,
+              files: files,
+              album: album,
+            );
         }
       },
       onError: (Object error, StackTrace _) {

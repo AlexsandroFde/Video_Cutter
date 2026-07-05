@@ -17,7 +17,10 @@ YouTube.
   - *Rápido*: cópia de streams (`-c copy`) — instantâneo e sem perda, corte
     ajustado ao keyframe mais próximo.
   - *Preciso*: recodifica com H.264/AAC — corte exato, mais lento.
-- **Compartilhar tudo**: os arquivos gerados saem juntos pela share sheet do
+- **Salvos numa pasta de verdade**: cada corte vai para a pasta pública
+  `Movies/Video Cutter` (via MediaStore) e aparece direto na galeria do
+  aparelho.
+- **Compartilhar tudo**: os arquivos também saem juntos pela share sheet do
   sistema (Fotos, Drive, WhatsApp etc.).
 
 ## Arquitetura
@@ -117,5 +120,6 @@ flutter test         # testes unitários (controllers e utilitários)
 
 - Baixar vídeos do YouTube pode violar os Termos de Serviço da plataforma.
   Use apenas com conteúdo próprio ou licenciado.
-- Os segmentos são gravados em `Documentos do app/VideoCutter/<título>_<data>/`
-  e podem ser compartilhados em lote ao final da exportação.
+- Os cortes são gerados numa pasta interna de trabalho e depois publicados
+  em `Movies/Video Cutter` (pasta pública, visível na galeria e no
+  gerenciador de arquivos). O "Compartilhar tudo" usa os arquivos internos.

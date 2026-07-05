@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/datasources/ffmpeg_datasource.dart';
+import '../data/datasources/gallery_datasource.dart';
 import '../data/datasources/local_media_datasource.dart';
 import '../data/datasources/youtube_datasource.dart';
 import '../data/repositories/export_repository_impl.dart';
@@ -32,8 +33,14 @@ final mediaRepositoryProvider = Provider<MediaRepository>(
   ),
 );
 
+final galleryDataSourceProvider =
+    Provider<GalleryDataSource>((ref) => const GalleryDataSource());
+
 final exportRepositoryProvider = Provider<ExportRepository>(
-  (ref) => ExportRepositoryImpl(ffmpeg: ref.watch(ffmpegDataSourceProvider)),
+  (ref) => ExportRepositoryImpl(
+    ffmpeg: ref.watch(ffmpegDataSourceProvider),
+    gallery: ref.watch(galleryDataSourceProvider),
+  ),
 );
 
 final mediaControllerProvider =

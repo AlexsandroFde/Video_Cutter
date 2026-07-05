@@ -25,13 +25,33 @@ final class ExportSegmentProgress extends ExportEvent {
   List<Object?> get props => [index, total, progress];
 }
 
-/// Todos os segmentos foram exportados com sucesso.
-final class ExportCompleted extends ExportEvent {
-  const ExportCompleted({required this.directory, required this.files});
+/// O corte [index] (0-based) está sendo salvo na pasta pública/galeria.
+final class ExportSavingToGallery extends ExportEvent {
+  const ExportSavingToGallery({required this.index, required this.total});
 
-  final String directory;
-  final List<String> files;
+  final int index;
+  final int total;
 
   @override
-  List<Object?> get props => [directory, files];
+  List<Object?> get props => [index, total];
+}
+
+/// Todos os segmentos foram exportados e salvos com sucesso.
+final class ExportCompleted extends ExportEvent {
+  const ExportCompleted({
+    required this.directory,
+    required this.files,
+    required this.album,
+  });
+
+  /// Diretório interno de trabalho (usado pelo "Compartilhar tudo").
+  final String directory;
+
+  final List<String> files;
+
+  /// Nome da pasta pública/álbum onde os cortes ficaram visíveis.
+  final String album;
+
+  @override
+  List<Object?> get props => [directory, files, album];
 }

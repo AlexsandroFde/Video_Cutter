@@ -12,11 +12,16 @@ import '../../domain/entities/video_media.dart';
 import '../../domain/entities/video_segment.dart';
 import '../../domain/repositories/export_repository.dart';
 import '../datasources/ffmpeg_datasource.dart';
+import '../datasources/gallery_datasource.dart';
 
 class ExportRepositoryImpl implements ExportRepository {
-  const ExportRepositoryImpl({required this._ffmpeg});
+  const ExportRepositoryImpl({required this._ffmpeg, required this._gallery});
+
+  /// Pasta pública onde os cortes ficam visíveis (galeria/gerenciador).
+  static const albumName = 'Video Cutter';
 
   final FfmpegDataSource _ffmpeg;
+  final GalleryDataSource _gallery;
 
   @override
   Stream<ExportEvent> exportSegments({
@@ -32,6 +37,15 @@ class ExportRepositoryImpl implements ExportRepository {
       final enabled = segments.where((s) => s.enabled).toList();
       if (enabled.isEmpty) {
         throw const ExportException('Nenhum segmento habilitado para exportar.');
+      }
+
+      // Pede a permissão antes de começar a cortar, para o usuário não
+      // esperar a exportação inteira e só então descobrir a negativa.
+      if (!await _gallery.ensureAccess()) {
+        throw const ExportException(
+          'Sem permissão para salvar os vídeos na galeria. '
+          'Conceda o acesso e tente de novo.',
+        );
       }
 
       final outputDir = await _createOutputDir(media.title);
@@ -67,7 +81,20 @@ class ExportRepositoryImpl implements ExportRepository {
         );
         files.add(outputPath);
       }
-      controller.add(ExportCompleted(directory: outputDir.path, files: files));
+
+      // Publica os cortes na pasta pública, onde a galeria os enxerga.
+      for (final (index, file) in files.indexed) {
+        controller.add(
+          ExportSavingToGallery(index: index, total: files.length),
+        );
+        await _gallery.saveVideo(file, album: albumName);
+      }
+
+      controller.add(ExportCompleted(
+        directory: outputDir.path,
+        files: files,
+        album: albumName,
+      ));
     }
 
     unawaited(

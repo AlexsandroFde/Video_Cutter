@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Download de vídeos do YouTube. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Salvar os cortes na pasta pública/galeria (só exigido até o
+         Android 10; do 11 em diante o MediaStore dispensa permissão). -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"/>
     <application
         android:label="Video Cutter"
         android:name="${applicationName}"

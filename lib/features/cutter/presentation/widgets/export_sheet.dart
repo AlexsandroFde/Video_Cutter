@@ -19,6 +19,9 @@ class ExportSheet extends ConsumerStatefulWidget {
 }
 
 class _ExportSheetState extends ConsumerState<ExportSheet> {
+  /// Nome exibido da pasta pública (mantido igual ao usado na exportação).
+  static const _albumLabel = 'Video Cutter';
+
   ExportMode _mode = ExportMode.fastCopy;
 
   void _start() {
@@ -48,8 +51,10 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
           ExportIdle() => _buildIdle(context),
           ExportRunning(:final current, :final total, :final overall) =>
             _buildRunning(context, current, total, overall),
-          ExportSuccess(:final directory, :final files) =>
-            _buildSuccess(context, directory, files),
+          ExportPublishing(:final current, :final total, :final overall) =>
+            _buildPublishing(context, current, total, overall),
+          ExportSuccess(:final album, :final files) =>
+            _buildSuccess(context, album, files),
           ExportFailure(:final message) => _buildFailure(context, message),
         },
       ),
@@ -145,9 +150,41 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
     );
   }
 
+  Widget _buildPublishing(
+    BuildContext context,
+    int current,
+    int total,
+    double overall,
+  ) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Guardando na pastinha… 💾',
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          child: LinearProgressIndicator(value: overall, minHeight: 10),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Salvando o pedacinho $current de $total em '
+          '"${_ExportSheetState._albumLabel}"',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+      ],
+    );
+  }
+
   Widget _buildSuccess(
     BuildContext context,
-    String directory,
+    String album,
     List<String> files,
   ) {
     final theme = Theme.of(context);
@@ -167,14 +204,14 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
         const SizedBox(height: AppSpacing.xs),
         Text(
           files.length == 1
-              ? '1 pedacinho pronto para compartilhar'
-              : '${files.length} pedacinhos prontos para compartilhar',
+              ? '1 pedacinho salvo na pasta "$album"'
+              : '${files.length} pedacinhos salvos na pasta "$album"',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          directory,
+          'Já dá para ver tudo na sua galeria 🎀',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
