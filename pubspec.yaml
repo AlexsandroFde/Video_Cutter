@@ -1,0 +1,32 @@
+name: video_cutter
+description: "Divide um vídeo (arquivo local ou YouTube) em segmentos e exporta todos de uma vez."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  equatable: ^2.0.8
+  ffmpeg_kit_flutter_new: ^4.3.2
+  # Fixado em 10.3.10: o 11.x não compila com AGP 9 + builtInKotlin=false
+  # (padrão do template Flutter). Ao subir para 11.x, troque a chamada por
+  # FilePicker.pickFiles (API estática) e veja
+  # https://github.com/miguelpruivo/flutter_file_picker/issues/1973
+  file_picker: 10.3.10
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.3.2
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  share_plus: 12.0.0
+  video_player: ^2.11.1
+  youtube_explode_dart: ^3.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
