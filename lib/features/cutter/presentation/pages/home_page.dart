@@ -21,6 +21,13 @@ class HomePage extends ConsumerWidget {
     final mediaState = ref.watch(mediaControllerProvider);
 
     ref.listen(mediaControllerProvider, (_, next) async {
+      if (next is MediaFailure) {
+        ref.read(mediaControllerProvider.notifier).reset();
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(next.message)));
+        return;
+      }
       if (next is! MediaReady) return;
       ref.read(mediaControllerProvider.notifier).reset();
       await _openEditor(context, ref, next.project);
@@ -36,18 +43,13 @@ class HomePage extends ConsumerWidget {
               switchInCurve: AppMotion.ease,
               child: switch (mediaState) {
                 MediaLoading(:final message, :final progress) => Padding(
-                    padding: const EdgeInsets.all(AppSpacing.xl),
-                    child:
-                        _LoadingView(message: message, progress: progress),
-                  ),
+                  padding: const EdgeInsets.all(AppSpacing.xl),
+                  child: _LoadingView(message: message, progress: progress),
+                ),
                 _ => _HomeContent(
-                    error: switch (mediaState) {
-                      MediaFailure(:final message) => message,
-                      _ => null,
-                    },
-                    onOpenProject: (project) =>
-                        _openEditor(context, ref, project),
-                  ),
+                  onOpenProject: (project) =>
+                      _openEditor(context, ref, project),
+                ),
               },
             ),
           ),
@@ -64,12 +66,14 @@ class HomePage extends ConsumerWidget {
     EditProject project,
   ) async {
     if (!File(project.videoPath).existsSync()) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-          'O vídeo desta edição não foi encontrado no aparelho. '
-          'Exclua a edição e crie outra.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'O vídeo desta edição não foi encontrado no aparelho. '
+            'Exclua a edição e crie outra.',
+          ),
         ),
-      ));
+      );
       return;
     }
 
@@ -83,10 +87,9 @@ class HomePage extends ConsumerWidget {
 }
 
 class _HomeContent extends ConsumerWidget {
-  const _HomeContent({required this.onOpenProject, this.error});
+  const _HomeContent({required this.onOpenProject});
 
   final void Function(EditProject project) onOpenProject;
-  final String? error;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -108,14 +111,11 @@ class _HomeContent extends ConsumerWidget {
         Text(
           'Corte um vídeo em pedacinhos\ne baixe tudo de uma vez 💕',
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: AppSpacing.xxl),
-        if (error != null) ...[
-          _ErrorBanner(message: error!),
-          const SizedBox(height: AppSpacing.lg),
-        ],
         _SourceCard(
           icon: Icons.video_library_rounded,
           title: 'Do meu aparelho',
@@ -171,8 +171,11 @@ class _AppBadge extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(AppRadii.xl),
               ),
-              child: Icon(Icons.content_cut_rounded,
-                  size: 40, color: scheme.onPrimary),
+              child: Icon(
+                Icons.content_cut_rounded,
+                size: 40,
+                color: scheme.onPrimary,
+              ),
             ),
             Positioned(
               right: 0,
@@ -183,8 +186,11 @@ class _AppBadge extends StatelessWidget {
                   color: scheme.surface,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.favorite_rounded,
-                    size: 18, color: scheme.primary),
+                child: Icon(
+                  Icons.favorite_rounded,
+                  size: 18,
+                  color: scheme.primary,
+                ),
               ),
             ),
           ],
@@ -239,48 +245,18 @@ class _SourceCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Icon(Icons.chevron_right_rounded,
-                  color: scheme.onSurfaceVariant),
+              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline_rounded, color: scheme.onErrorContainer),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: scheme.onErrorContainer),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -301,14 +277,18 @@ class _LoadingView extends StatelessWidget {
       children: [
         const _PulsingHeart(),
         const SizedBox(height: AppSpacing.xl),
-        Text(message,
-            textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleMedium,
+        ),
         const SizedBox(height: AppSpacing.xs),
         Text(
           'isso pode levar um minutinho ☁️',
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: AppSpacing.xl),
         ClipRRect(
@@ -343,9 +323,10 @@ class _PulsingHeartState extends State<_PulsingHeart>
     duration: const Duration(milliseconds: 900),
   )..repeat(reverse: true);
 
-  late final Animation<double> _scale = Tween(begin: 0.9, end: 1.1).animate(
-    CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-  );
+  late final Animation<double> _scale = Tween(
+    begin: 0.9,
+    end: 1.1,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
   @override
   void dispose() {
