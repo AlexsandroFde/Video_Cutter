@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -162,10 +164,7 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Cortando parte $current de $total… ✂️',
-          style: theme.textTheme.titleMedium,
-        ),
+        const _LovingLine(phrases: _runningPhrases),
         const SizedBox(height: AppSpacing.lg),
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -173,7 +172,8 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          '${(overall * 100).toStringAsFixed(0)}%  —  mantenha o app aberto',
+          'Parte $current de $total  •  ${(overall * 100).toStringAsFixed(0)}%'
+          '  —  mantenha o app aberto',
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
@@ -181,6 +181,23 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       ],
     );
   }
+
+  /// Frases fofas que se revezam enquanto os cortes são feitos.
+  static const _runningPhrases = [
+    'quase lá, meu bem',
+    'preparando tudo com carinho',
+    'cuidando de cada pedacinho',
+    'só mais um pouquinho, meu amor',
+    'fazendo com todo o meu amor 💖',
+    'já já fica pronto, viu?',
+  ];
+
+  /// Frases da etapa de salvar na galeria.
+  static const _publishingPhrases = [
+    'guardando com carinho',
+    'colocando tudo no lugarzinho',
+    'quase pronto, meu amor',
+  ];
 
   Widget _buildPublishing(
     BuildContext context,
@@ -193,10 +210,7 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Guardando na pastinha… 💾',
-          style: theme.textTheme.titleMedium,
-        ),
+        const _LovingLine(phrases: _publishingPhrases),
         const SizedBox(height: AppSpacing.lg),
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -245,9 +259,8 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
         const SizedBox(height: AppSpacing.xs),
         Text(
           switch (format) {
-            ExportFormat.video => 'Já dá para ver tudo na sua galeria 🎀',
-            ExportFormat.mp3 =>
-              'Já dá para ouvir tudo na pasta Música 🎶',
+            ExportFormat.video => 'Já dá para ver tudo na sua galeria',
+            ExportFormat.mp3 => 'Já dá para ouvir tudo na pasta Música',
           },
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall
@@ -292,6 +305,54 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
           child: const Text('Tentar de novo'),
         ),
       ],
+    );
+  }
+}
+
+/// Frase carinhosa que se troca sozinha durante a espera, com um fade
+/// suave — dá a sensação de alguém torcendo do outro lado.
+class _LovingLine extends StatefulWidget {
+  const _LovingLine({required this.phrases});
+
+  final List<String> phrases;
+
+  @override
+  State<_LovingLine> createState() => _LovingLineState();
+}
+
+class _LovingLineState extends State<_LovingLine> {
+  static const _interval = Duration(seconds: 3);
+
+  int _index = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(_interval, (_) {
+      if (!mounted) return;
+      setState(() => _index = (_index + 1) % widget.phrases.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AnimatedSwitcher(
+      duration: AppMotion.normal,
+      switchInCurve: AppMotion.ease,
+      switchOutCurve: AppMotion.ease,
+      child: Text(
+        widget.phrases[_index],
+        key: ValueKey(_index),
+        style: theme.textTheme.titleMedium,
+      ),
     );
   }
 }

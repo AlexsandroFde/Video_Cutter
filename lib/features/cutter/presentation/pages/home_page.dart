@@ -284,7 +284,7 @@ class _LoadingView extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'isso pode levar um minutinho ☁️',
+          'isso pode levar um minutinho',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
