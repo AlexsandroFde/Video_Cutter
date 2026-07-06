@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,11 +23,17 @@ class TimelineEditor extends ConsumerStatefulWidget {
   const TimelineEditor({
     super.key,
     required this.player,
+    required this.videoId,
+    required this.videoPath,
     this.focusedSegmentId,
     this.onClearFocus,
   });
 
   final VideoPlayerController player;
+
+  /// Identificam o vídeo para o cache das miniaturas da trilha.
+  final String videoId;
+  final String videoPath;
 
   /// Corte mantido em foco na reprodução (destacado na trilha), se houver.
   final int? focusedSegmentId;
@@ -160,6 +167,18 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
   Widget build(BuildContext context) {
     final segmentsState = ref.watch(segmentsControllerProvider);
     final cutter = Theme.of(context).extension<CutterColors>()!;
+
+    // Miniaturas do fundo da trilha; vazio enquanto o FFmpeg gera.
+    final thumbnails = ref
+        .watch(
+          timelineStripProvider((
+            id: widget.videoId,
+            videoPath: widget.videoPath,
+            durationMs: segmentsState.duration.inMilliseconds,
+          )),
+        )
+        .value ??
+        const <ui.Image>[];
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -297,6 +316,7 @@ class _TimelineEditorState extends ConsumerState<TimelineEditor> {
                         zoom: _zoom,
                         scroll: _scroll,
                         colors: cutter,
+                        thumbnails: thumbnails,
                       ),
                     ),
                   ),
@@ -537,10 +557,15 @@ class _TimelinePainter extends CustomPainter {
     required this.zoom,
     required this.scroll,
     required this.colors,
+    required this.thumbnails,
   });
 
   final List<VideoSegment> segments;
   final Duration duration;
+
+  /// Quadros do vídeo, da esquerda para a direita, para o fundo da trilha.
+  /// Vazio enquanto ainda estão sendo gerados.
+  final List<ui.Image> thumbnails;
 
   /// Posição do cursor de reprodução, de 0 a 1.
   final double playhead;
@@ -580,6 +605,9 @@ class _TimelinePainter extends CustomPainter {
     canvas.clipRRect(trackRRect);
     canvas.drawRect(track, Paint()..color = colors.timelineTrack);
 
+    final hasThumbs = thumbnails.isNotEmpty;
+    if (hasThumbs) _paintFilmstrip(canvas, size, contentWidth, track);
+
     final dimPaint = Paint()
       ..color = colors.timelineTrack.withValues(alpha: 0.6);
 
@@ -589,35 +617,35 @@ class _TimelinePainter extends CustomPainter {
       if (right < 0 || left > size.width) continue;
 
       final rect = Rect.fromLTRB(left, track.top, right, track.bottom);
-      final fill = segment.enabled
-          ? colors.segmentColor(index)
-          : colors.segmentDisabled;
-      canvas.drawRect(rect, Paint()..color = fill);
+
+      if (hasThumbs) {
+        // A miniatura fica limpa: o corte é marcado por uma faixa colorida
+        // na base e pelo selo do número, sem véu por cima do quadro.
+        if (!segment.enabled) {
+          // Parte fora da exportação: esmaece o quadro para ler como "off".
+          canvas.drawRect(
+            rect,
+            Paint()..color = colors.timelineTrack.withValues(alpha: 0.66),
+          );
+        }
+        final markColor = _markColor(index, segment.enabled);
+        final bar = Rect.fromLTRB(rect.left, rect.bottom - 6, rect.right, rect.bottom);
+        canvas.drawRect(bar, Paint()..color = markColor);
+      } else {
+        // Enquanto as miniaturas não chegam, preenche a parte como antes.
+        canvas.drawRect(
+          rect,
+          Paint()
+            ..color = segment.enabled
+                ? colors.segmentColor(index)
+                : colors.segmentDisabled,
+        );
+      }
 
       if (rect.width > 26) {
-        final textPainter = TextPainter(
-          text: TextSpan(
-            text: '${index + 1}',
-            style: TextStyle(
-              color: segment.enabled
-                  ? colors.segmentInk
-                  : colors.boundaryHandle,
-              fontFamily: 'Nunito',
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
         // Centro da parte visível, para o número não sumir com o zoom.
         final cx = (math.max(left, 0.0) + math.min(right, size.width)) / 2;
-        textPainter.paint(
-          canvas,
-          Offset(
-            cx - textPainter.width / 2,
-            rect.center.dy - textPainter.height / 2,
-          ),
-        );
+        _paintNumberBadge(canvas, index, segment.enabled, cx, track, hasThumbs);
       }
 
       if (focusedIndex != null && index != focusedIndex) {
@@ -684,6 +712,104 @@ class _TimelinePainter extends CustomPainter {
         Paint()..color = colors.playhead,
       );
     }
+  }
+
+  /// Fundo da trilha com os quadros do vídeo em sequência: cada miniatura
+  /// cobre uma fatia igual do tempo, recortada para preencher (cover).
+  void _paintFilmstrip(
+    Canvas canvas,
+    Size size,
+    double contentWidth,
+    Rect track,
+  ) {
+    final count = thumbnails.length;
+    final slice = contentWidth / count;
+    final paint = Paint()..filterQuality = FilterQuality.low;
+
+    for (var i = 0; i < count; i++) {
+      final left = slice * i - scroll;
+      // Meio pixel de folga evita costuras entre quadros vizinhos.
+      final right = slice * (i + 1) - scroll + 0.5;
+      if (right < 0 || left > size.width) continue;
+
+      final image = thumbnails[i];
+      final dst = Rect.fromLTRB(left, track.top, right, track.bottom);
+      canvas.drawImageRect(image, _coverSrc(image, dst), dst, paint);
+    }
+  }
+
+  /// Recorte da imagem que preenche [dst] sem distorcer (equivalente a
+  /// BoxFit.cover), centralizado.
+  Rect _coverSrc(ui.Image image, Rect dst) {
+    final iw = image.width.toDouble();
+    final ih = image.height.toDouble();
+    final scale = math.max(dst.width / iw, dst.height / ih);
+    final srcW = dst.width / scale;
+    final srcH = dst.height / scale;
+    return Rect.fromLTWH((iw - srcW) / 2, (ih - srcH) / 2, srcW, srcH);
+  }
+
+  /// Cor da marcação do corte [index]: o pastel dele, ou uma versão apagada
+  /// quando está fora da exportação.
+  Color _markColor(int index, bool enabled) {
+    final base = colors.segmentColor(index);
+    if (enabled) return base;
+    return Color.lerp(base, colors.timelineTrack, 0.62)!;
+  }
+
+  /// Selo com o número do corte, num pastel arredondado, para o número ficar
+  /// legível sobre a miniatura. Fica no alto da parte, deixando o quadro à
+  /// vista.
+  void _paintNumberBadge(
+    Canvas canvas,
+    int index,
+    bool enabled,
+    double cx,
+    Rect track,
+    bool hasThumbs,
+  ) {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: '${index + 1}',
+        style: TextStyle(
+          color: colors.segmentInk,
+          fontFamily: 'Nunito',
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    // Com miniaturas, o número ganha um selo no alto; sem elas, mantém o
+    // visual antigo (número solto, centralizado na faixa colorida).
+    if (!hasThumbs) {
+      textPainter.paint(
+        canvas,
+        Offset(
+          cx - textPainter.width / 2,
+          track.center.dy - textPainter.height / 2,
+        ),
+      );
+      return;
+    }
+
+    const padH = 6.0;
+    const padV = 2.0;
+    final badge = Rect.fromLTWH(
+      cx - textPainter.width / 2 - padH,
+      track.top + 3,
+      textPainter.width + padH * 2,
+      textPainter.height + padV * 2,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(badge, const Radius.circular(9)),
+      Paint()..color = _markColor(index, enabled),
+    );
+    textPainter.paint(
+      canvas,
+      Offset(badge.left + padH, badge.top + padV),
+    );
   }
 
   /// Régua de tempo: marcas maiores rotuladas e marcas menores entre elas.
@@ -788,5 +914,6 @@ class _TimelinePainter extends CustomPainter {
       oldDelegate.focusedIndex != focusedIndex ||
       oldDelegate.zoom != zoom ||
       oldDelegate.scroll != scroll ||
-      oldDelegate.colors != colors;
+      oldDelegate.colors != colors ||
+      !identical(oldDelegate.thumbnails, thumbnails);
 }

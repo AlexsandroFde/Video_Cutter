@@ -53,6 +53,23 @@ class HistoryLocalDataSource {
     return Directory(p.join(base.path, 'videos')).create(recursive: true);
   }
 
+  /// Pasta das miniaturas da edição [id] (criada se necessário).
+  Future<Directory> thumbsDir(String id) async {
+    final base = await _baseDirProvider();
+    return Directory(p.join(base.path, 'thumbs', id)).create(recursive: true);
+  }
+
+  /// Apaga todas as miniaturas da edição [id] (silencioso se não houver).
+  Future<void> deleteThumbs(String id) async {
+    final base = await _baseDirProvider();
+    final dir = Directory(p.join(base.path, 'thumbs', id));
+    try {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    } on FileSystemException {
+      // Miniaturas são descartáveis: um resquício no disco não é problema.
+    }
+  }
+
   Future<File> _historyFile() async {
     final base = await _baseDirProvider();
     await base.create(recursive: true);

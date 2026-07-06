@@ -328,6 +328,8 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                   ),
                   child: TimelineEditor(
                     player: _player,
+                    videoId: widget.project.id,
+                    videoPath: widget.project.videoPath,
                     focusedSegmentId: _focusedSegmentId,
                     onClearFocus: () =>
                         setState(() => _focusedSegmentId = null),

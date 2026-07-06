@@ -113,6 +113,8 @@ class HistoryRepositoryImpl implements HistoryRepository {
       // O registro sai do histórico mesmo se o arquivo resistir.
     }
 
+    await _local.deleteThumbs(id);
+
     models.removeAt(index);
     await _local.writeAll(models);
   }

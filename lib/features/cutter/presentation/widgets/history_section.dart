@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -56,6 +58,56 @@ class HistorySection extends ConsumerWidget {
   }
 }
 
+/// Miniatura do cartão: o quadro-pôster do vídeo, com o ícone colorido
+/// como espera (enquanto gera) e como reserva (se falhar).
+class _ProjectThumb extends ConsumerWidget {
+  const _ProjectThumb({required this.project, required this.index});
+
+  final EditProject project;
+  final int index;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cutter = Theme.of(context).extension<CutterColors>()!;
+    final poster = ref.watch(
+      posterProvider((
+        id: project.id,
+        videoPath: project.videoPath,
+        durationMs: project.duration.inMilliseconds,
+      )),
+    );
+
+    Widget fallback() => Container(
+          alignment: Alignment.center,
+          color: cutter.segmentColor(index),
+          child: Icon(
+            project.origin == MediaOrigin.youtube
+                ? Icons.play_circle_rounded
+                : Icons.movie_rounded,
+            color: cutter.segmentInk,
+          ),
+        );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadii.md),
+      child: SizedBox(
+        width: 56,
+        height: 44,
+        child: switch (poster) {
+          AsyncData(:final String value) => Image.file(
+              File(value),
+              width: 56,
+              height: 44,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => fallback(),
+            ),
+          _ => fallback(),
+        },
+      ),
+    );
+  }
+}
+
 enum _TileAction { rename, delete }
 
 class _HistoryTile extends ConsumerWidget {
@@ -72,7 +124,6 @@ class _HistoryTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final cutter = theme.extension<CutterColors>()!;
 
     final parts = project.segments.length;
     final partsLabel = switch (parts) {
@@ -84,20 +135,7 @@ class _HistoryTile extends ConsumerWidget {
     return Card(
       child: ListTile(
         onTap: () => onOpen(project),
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: cutter.segmentColor(index),
-            borderRadius: BorderRadius.circular(AppRadii.md),
-          ),
-          child: Icon(
-            project.origin == MediaOrigin.youtube
-                ? Icons.play_circle_rounded
-                : Icons.movie_rounded,
-            color: cutter.segmentInk,
-          ),
-        ),
+        leading: _ProjectThumb(project: project, index: index),
         title: Text(
           project.name,
           maxLines: 1,
