@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import 'video_chapter.dart';
 import 'video_media.dart';
 import 'video_segment.dart';
 
@@ -15,6 +16,7 @@ class EditProject extends Equatable {
     required this.segments,
     required this.createdAt,
     required this.updatedAt,
+    this.chapters = const [],
   });
 
   final String id;
@@ -37,11 +39,20 @@ class EditProject extends Equatable {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Capítulos que o vídeo trouxe do YouTube; vazio quando não há.
+  final List<VideoChapter> chapters;
+
   /// Representação do vídeo para o player e a exportação.
-  VideoMedia get media =>
-      VideoMedia(filePath: videoPath, title: name, origin: origin);
+  VideoMedia get media => VideoMedia(
+        filePath: videoPath,
+        title: name,
+        origin: origin,
+        chapters: chapters,
+      );
 
   @override
-  List<Object?> get props =>
-      [id, name, videoPath, origin, duration, segments, createdAt, updatedAt];
+  List<Object?> get props => [
+        id, name, videoPath, origin, duration, segments, //
+        createdAt, updatedAt, chapters,
+      ];
 }

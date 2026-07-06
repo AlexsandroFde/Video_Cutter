@@ -5,7 +5,9 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/file_name.dart';
+import '../../domain/entities/video_chapter.dart';
 import 'ffmpeg_datasource.dart';
+import 'youtube_chapter_parser.dart';
 
 /// Baixa vídeos do YouTube para um arquivo local.
 class YoutubeDataSource {
@@ -13,12 +15,14 @@ class YoutubeDataSource {
 
   final FfmpegDataSource _ffmpeg;
 
-  /// Baixa o vídeo de [url] para [targetDir] e retorna caminho + título.
+  /// Baixa o vídeo de [url] para [targetDir] e retorna caminho, título e os
+  /// capítulos anunciados na descrição (vazio quando não há).
   ///
   /// Prefere streams muxed (áudio+vídeo juntos). Quando o YouTube só oferece
   /// streams adaptativos — o caso comum acima de 360p —, baixa vídeo e áudio
   /// separados e junta com FFmpeg sem recodificar.
-  Future<({String filePath, String title})> download(
+  Future<({String filePath, String title, List<VideoChapter> chapters})>
+      download(
     String url,
     Directory targetDir, {
     void Function(double? progress)? onProgress,
@@ -47,7 +51,11 @@ class YoutubeDataSource {
       } else {
         await _downloadAdaptive(yt, manifest, outputPath, onProgress);
       }
-      return (filePath: outputPath, title: video.title);
+      return (
+        filePath: outputPath,
+        title: video.title,
+        chapters: parseChaptersFromDescription(video.description),
+      );
     } on AppException {
       rethrow;
     } on YoutubeExplodeException catch (e) {

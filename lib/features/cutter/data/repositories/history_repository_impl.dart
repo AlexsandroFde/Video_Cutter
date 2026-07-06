@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/file_name.dart';
 import '../../domain/entities/edit_project.dart';
+import '../../domain/entities/video_chapter.dart';
 import '../../domain/entities/video_media.dart';
 import '../../domain/entities/video_segment.dart';
 import '../../domain/repositories/history_repository.dart';
@@ -28,6 +29,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
     required String videoPath,
     required String title,
     required MediaOrigin origin,
+    List<VideoChapter> chapters = const [],
   }) async {
     final models = await _local.readAll();
     final name = _uniqueName(
@@ -51,6 +53,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
       segments: const [],
       createdAt: now,
       updatedAt: now,
+      chapters: chapters,
     );
     await _local.writeAll([...models, model]);
     return model.toEntity();

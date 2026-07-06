@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_cutter/features/cutter/domain/entities/video_chapter.dart';
 import 'package:video_cutter/features/cutter/domain/entities/video_segment.dart';
 import 'package:video_cutter/features/cutter/presentation/controllers/segments_controller.dart';
 import 'package:video_cutter/features/cutter/presentation/providers.dart';
@@ -302,6 +303,93 @@ void main() {
       expect(state().segments, hasLength(1));
       expect(state().canUndo, isFalse);
       expect(state().canRedo, isFalse);
+    });
+  });
+
+  group('applyChapters', () {
+    test('cada capítulo vira um segmento, até o próximo ou o fim', () {
+      final created = controller.applyChapters(const [
+        VideoChapter(start: Duration.zero, title: 'Intro'),
+        VideoChapter(start: Duration(minutes: 2), title: 'Meio'),
+        VideoChapter(start: Duration(minutes: 6), title: 'Final'),
+      ]);
+
+      expect(created, 3);
+      final segments = state().segments;
+      expect(segments, hasLength(3));
+      expect(segments[0].start, Duration.zero);
+      expect(segments[0].end, const Duration(minutes: 2));
+      expect(segments[1].end, const Duration(minutes: 6));
+      expect(segments[2].end, total);
+      expect(segments.every((s) => s.enabled), isTrue);
+    });
+
+    test('capítulo em 0:00 não cria segmento vazio no começo', () {
+      controller.applyChapters(const [
+        VideoChapter(start: Duration.zero, title: 'Intro'),
+        VideoChapter(start: Duration(minutes: 5), title: 'Final'),
+      ]);
+
+      final segments = state().segments;
+      expect(segments, hasLength(2));
+      expect(segments[0].start, Duration.zero);
+      expect(segments[0].end, const Duration(minutes: 5));
+    });
+
+    test('capítulos além da duração do vídeo são ignorados', () {
+      final created = controller.applyChapters(const [
+        VideoChapter(start: Duration.zero, title: 'Intro'),
+        VideoChapter(start: Duration(minutes: 4), title: 'Meio'),
+        VideoChapter(start: Duration(minutes: 12), title: 'Não existe'),
+      ]);
+
+      expect(created, 2);
+      expect(state().segments.last.end, total);
+    });
+
+    test('capítulos mais próximos que o mínimo não geram corte extra', () {
+      final created = controller.applyChapters(const [
+        VideoChapter(start: Duration.zero, title: 'Intro'),
+        VideoChapter(start: Duration(minutes: 2), title: 'Meio'),
+        VideoChapter(
+          start: Duration(minutes: 2, milliseconds: 200),
+          title: 'Colado no anterior',
+        ),
+      ]);
+
+      expect(created, 2);
+      expect(state().segments[0].end, const Duration(minutes: 2));
+    });
+
+    test('sem capítulo aproveitável, retorna 0 e nada muda', () {
+      final created = controller.applyChapters(const [
+        VideoChapter(start: Duration(minutes: 15), title: 'Fora do vídeo'),
+        VideoChapter(start: Duration(minutes: 20), title: 'Também'),
+      ]);
+
+      expect(created, 0);
+      expect(state().segments, hasLength(1));
+      expect(state().canUndo, isFalse);
+    });
+
+    test('substitui a edição atual como um único passo de undo', () {
+      controller.splitAt(const Duration(minutes: 4));
+      final before = state().segments;
+
+      controller.applyChapters(const [
+        VideoChapter(start: Duration.zero, title: 'Intro'),
+        VideoChapter(start: Duration(minutes: 3), title: 'Meio'),
+        VideoChapter(start: Duration(minutes: 7), title: 'Final'),
+      ]);
+      expect(state().segments, hasLength(3));
+
+      controller.undo();
+      expect(state().segments, before);
+    });
+
+    test('lista vazia retorna 0', () {
+      expect(controller.applyChapters(const []), 0);
+      expect(state().segments, hasLength(1));
     });
   });
 }

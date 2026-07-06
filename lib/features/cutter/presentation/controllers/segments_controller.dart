@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/entities/video_chapter.dart';
 import '../../domain/entities/video_segment.dart';
 
 /// Estado da segmentação: a duração do vídeo e a lista de segmentos, que é
@@ -216,6 +217,36 @@ class SegmentsController extends Notifier<SegmentsState> {
     updated[index] = left.copyWith(end: clamped);
     updated[index + 1] = right.copyWith(start: clamped);
     state = state.copyWith(segments: updated);
+  }
+
+  /// Recria os segmentos a partir dos capítulos do vídeo: cada capítulo
+  /// vira um segmento, do timestamp dele até o próximo (ou o fim do vídeo).
+  ///
+  /// Capítulos fora da duração ou a menos de [minSegment] de outro corte
+  /// são ignorados. Substitui a segmentação atual como um único passo de
+  /// undo. Retorna quantos segmentos foram criados; 0 significa que nenhum
+  /// capítulo era aproveitável e nada mudou.
+  int applyChapters(List<VideoChapter> chapters) {
+    final duration = state.duration;
+    if (duration <= Duration.zero || chapters.isEmpty) return 0;
+
+    final starts = chapters.map((c) => c.start).toList()..sort();
+    final cuts = <Duration>[];
+    var previous = Duration.zero;
+    for (final start in starts) {
+      if (start - previous < minSegment) continue;
+      if (duration - start < minSegment) break;
+      cuts.add(start);
+      previous = start;
+    }
+    if (cuts.isEmpty) return 0;
+
+    final points = [Duration.zero, ...cuts, duration];
+    _apply([
+      for (var i = 0; i < points.length - 1; i++)
+        VideoSegment(id: _nextId++, start: points[i], end: points[i + 1]),
+    ]);
+    return state.segments.length;
   }
 
   /// Inverte a participação do segmento [id] na exportação.

@@ -1,4 +1,5 @@
 import '../entities/edit_project.dart';
+import '../entities/video_chapter.dart';
 import '../entities/video_media.dart';
 import '../entities/video_segment.dart';
 
@@ -11,10 +12,12 @@ abstract interface class HistoryRepository {
   /// ou copiando-o (arquivo do usuário) para o armazenamento do app.
   ///
   /// O nome nasce de [title] e recebe um sufixo numérico se já existir.
+  /// [chapters] guarda os capítulos que o vídeo trouxe do YouTube.
   Future<EditProject> createProject({
     required String videoPath,
     required String title,
     required MediaOrigin origin,
+    List<VideoChapter> chapters = const [],
   });
 
   /// Renomeia a edição [id]; lança `HistoryException` para nome vazio,

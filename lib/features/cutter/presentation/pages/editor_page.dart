@@ -234,6 +234,27 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     }
   }
 
+  /// Recorta o vídeo seguindo os capítulos que ele trouxe do YouTube.
+  /// Substitui os cortes atuais, mas é um passo normal de undo.
+  void _applyChapters() {
+    HapticFeedback.lightImpact();
+    final created = ref
+        .read(segmentsControllerProvider.notifier)
+        .applyChapters(widget.project.chapters);
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          created > 0
+              ? 'Prontinho! O vídeo virou $created pedacinhos, '
+                    'seguindo os capítulos.'
+              : 'Não deu para usar os capítulos: eles ficam fora da '
+                    'duração deste vídeo.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _openExportSheet() async {
     await _player.pause();
     if (!mounted) return;
@@ -357,6 +378,20 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                       ],
                     ),
                   ),
+                if (segmentsState.isReady &&
+                    widget.project.chapters.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      0,
+                      AppSpacing.lg,
+                      AppSpacing.xs,
+                    ),
+                    child: _ChaptersBanner(
+                      count: widget.project.chapters.length,
+                      onApply: _applyChapters,
+                    ),
+                  ),
                 Expanded(
                   flex: 4,
                   child: !segmentsState.isReady
@@ -413,6 +448,49 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                 : 'Exportar ${segmentsState.enabledCount} pedacinhos',
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Convite para cortar o vídeo pelos capítulos que ele trouxe do YouTube.
+class _ChaptersBanner extends StatelessWidget {
+  const _ChaptersBanner({required this.count, required this.onApply});
+
+  final int count;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final onContainer = theme.colorScheme.onSecondaryContainer;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.xs,
+        AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.auto_awesome_rounded, size: 20, color: onContainer),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Este vídeo veio com $count capítulos do YouTube!',
+              style: theme.textTheme.bodyMedium?.copyWith(color: onContainer),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          TextButton(
+            onPressed: onApply,
+            child: const Text('Usar capítulos'),
+          ),
+        ],
       ),
     );
   }

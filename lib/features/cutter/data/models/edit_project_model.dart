@@ -1,4 +1,5 @@
 import '../../domain/entities/edit_project.dart';
+import '../../domain/entities/video_chapter.dart';
 import '../../domain/entities/video_media.dart';
 import '../../domain/entities/video_segment.dart';
 
@@ -13,6 +14,7 @@ class EditProjectModel {
     required this.segments,
     required this.createdAt,
     required this.updatedAt,
+    this.chapters = const [],
   });
 
   factory EditProjectModel.fromJson(Map<String, dynamic> json) {
@@ -28,6 +30,11 @@ class EditProjectModel {
       ],
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      // Históricos antigos não têm o campo — segue sem capítulos.
+      chapters: [
+        for (final chapter in json['chapters'] as List<dynamic>? ?? const [])
+          _chapterFromJson(chapter as Map<String, dynamic>),
+      ],
     );
   }
 
@@ -41,6 +48,7 @@ class EditProjectModel {
       segments: entity.segments,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
+      chapters: entity.chapters,
     );
   }
 
@@ -52,6 +60,7 @@ class EditProjectModel {
   final List<VideoSegment> segments;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<VideoChapter> chapters;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -70,6 +79,13 @@ class EditProjectModel {
         ],
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
+        'chapters': [
+          for (final chapter in chapters)
+            {
+              'startMs': chapter.start.inMilliseconds,
+              'title': chapter.title,
+            },
+        ],
       };
 
   EditProject toEntity() => EditProject(
@@ -81,6 +97,7 @@ class EditProjectModel {
         segments: segments,
         createdAt: createdAt,
         updatedAt: updatedAt,
+        chapters: chapters,
       );
 
   EditProjectModel copyWith({
@@ -98,6 +115,7 @@ class EditProjectModel {
       segments: segments ?? this.segments,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      chapters: chapters,
     );
   }
 
@@ -107,6 +125,13 @@ class EditProjectModel {
       start: Duration(milliseconds: json['startMs'] as int),
       end: Duration(milliseconds: json['endMs'] as int),
       enabled: json['enabled'] as bool,
+    );
+  }
+
+  static VideoChapter _chapterFromJson(Map<String, dynamic> json) {
+    return VideoChapter(
+      start: Duration(milliseconds: json['startMs'] as int),
+      title: json['title'] as String,
     );
   }
 }

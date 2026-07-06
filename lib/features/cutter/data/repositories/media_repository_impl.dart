@@ -65,6 +65,7 @@ class MediaRepositoryImpl implements MediaRepository {
       filePath: result.filePath,
       title: result.title,
       origin: MediaOrigin.youtube,
+      chapters: result.chapters,
     );
   }
 }

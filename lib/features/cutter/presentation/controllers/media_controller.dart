@@ -97,6 +97,7 @@ class MediaController extends Notifier<MediaState> {
           videoPath: media.filePath,
           title: media.title,
           origin: media.origin,
+          chapters: media.chapters,
         );
     ref.invalidate(historyControllerProvider);
     return project;
